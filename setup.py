@@ -39,9 +39,7 @@ except IOError:
 
 install_requires=[
     'setuptools',
-    'Chameleon >= 1.2.3',
-    'Mako >= 0.3.6', # strict_undefined
-    'WebOb >= 1.2b3', # request.path_info is unicode
+    'WebOb >= 1.3.1', # request.domain and CookieProfile
     'repoze.lru >= 0.4', # py3 compat
     'zope.interface >= 3.8.0',  # has zope.interface.registry
     'zope.deprecation >= 3.5.0', # py3 compat
@@ -71,9 +69,8 @@ testing_extras = tests_require + [
     ]
 
 setup(name='pyramid',
-      version='1.5a1',
-      description=('The Pyramid Web Framework, a '
-                   'Pylons project'),
+      version='1.5a3',
+      description='The Pyramid Web Framework, a Pylons project',
       long_description=README + '\n\n' +  CHANGES,
       classifiers=[
         "Intended Audience :: Developers",
@@ -111,7 +108,6 @@ setup(name='pyramid',
         zodb=pyramid.scaffolds:ZODBProjectTemplate
         alchemy=pyramid.scaffolds:AlchemyProjectTemplate
         [console_scripts]
-        bfg2pyramid = pyramid.fixers.fix_bfg_imports:main
         pcreate = pyramid.scripts.pcreate:main
         pserve = pyramid.scripts.pserve:main
         pshell = pyramid.scripts.pshell:main

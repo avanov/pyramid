@@ -11,7 +11,9 @@
    :exclude-members: add_response_callback, add_finished_callback,
                      route_url, route_path, current_route_url,
                      current_route_path, static_url, static_path,
-                     model_url, resource_url, set_property
+                     model_url, resource_url, set_property, 
+                     effective_principals, authenticated_userid,
+                     unauthenticated_userid, has_permission
 
    .. attribute:: context
 
@@ -161,6 +163,42 @@
       request, the value of this attribute will be ``None``. See
       :ref:`matched_route`.
 
+   .. attribute:: authenticated_userid
+
+      .. versionadded:: 1.5
+
+      A property which returns the userid of the currently authenticated user
+      or ``None`` if there is no :term:`authentication policy` in effect or
+      there is no currently authenticated user.  This differs from
+      :attr:`~pyramid.request.Request.unauthenticated_userid`, because the
+      effective authentication policy will have ensured that a record
+      associated with the userid exists in persistent storage; if it has
+      not, this value will be ``None``.
+
+   .. attribute:: unauthenticated_userid
+
+      .. versionadded:: 1.5
+
+      A property which returns a value which represents the *claimed* (not
+      verified) user id of the credentials present in the request. ``None`` if
+      there is no :term:`authentication policy` in effect or there is no user
+      data associated with the current request.  This differs from
+      :attr:`~pyramid.request.Request.authenticated_userid`, because the
+      effective authentication policy will not ensure that a record associated
+      with the userid exists in persistent storage.  Even if the userid
+      does not exist in persistent storage, this value will be the value
+      of the userid *claimed* by the request data.
+
+   .. attribute:: effective_principals
+
+      .. versionadded:: 1.5
+
+      A property which returns the list of 'effective' :term:`principal`
+      identifiers for this request.  This will include the userid of the
+      currently authenticated user if a user is currently authenticated. If no
+      :term:`authentication policy` is in effect, this will return a sequence
+      containing only the :attr:`pyramid.security.Everyone` principal.
+
    .. method:: invoke_subrequest(request, use_tweens=False)
 
       .. versionadded:: 1.4a1
@@ -199,12 +237,12 @@
       - Ensures that the user implied by the request passed has the necessary
         authorization to invoke view callable before calling it.
 
-      - causes a :class:`~pyramid.events.NewResponse` event to be sent when
-        the Pyramid application returns a response.
-
       - Calls any :term:`response callback` functions defined within the
         request's lifetime if a response is obtained from the Pyramid
         application.
+
+      - causes a :class:`~pyramid.events.NewResponse` event to be sent if a
+        response is obtained.
 
       - Calls any :term:`finished callback` functions defined within the
         request's lifetime.
@@ -214,6 +252,8 @@
       subrequest is invoked.  This means that it's not available for use on a
       request provided by e.g. the ``pshell`` environment.  For more
       information, see :ref:`subrequest_chapter`.
+
+   .. automethod:: has_permission
 
    .. automethod:: add_response_callback
 
@@ -234,24 +274,6 @@
    .. automethod:: resource_url
 
    .. automethod:: resource_path
-
-   .. attribute::  response_*
-
-      In Pyramid 1.0, you could set attributes on a
-      :class:`pyramid.request.Request` which influenced the behavior of
-      *rendered* responses (views which use a :term:`renderer` and which
-      don't directly return a response).  These attributes began with
-      ``response_``, such as ``response_headerlist``. If you needed to
-      influence response values from a view that uses a renderer (such as the
-      status code, a header, the content type, etc) you would set these
-      attributes.  See :ref:`response_prefixed_attrs` for further discussion.
-      As of Pyramid 1.1, assignment to ``response_*`` attrs is deprecated.
-      Assigning to one is still supported but will cause a deprecation
-      warning to be emitted, and eventually the feature will be removed.  For
-      new code, instead of assigning ``response_*`` attributes to the
-      request, use API of the :attr:`pyramid.request.Request.response`
-      object (exposed to view code as ``request.response``) to influence
-      rendered response behavior.
 
    .. attribute:: json_body
 
