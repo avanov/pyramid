@@ -360,6 +360,11 @@ The feature additions in Pyramid 1.5 follow.
   timeouts, and conformance with the ``ISession`` API.
   See https://github.com/Pylons/pyramid/pull/1142
 
+- We no longer eagerly clear ``request.exception`` and ``request.exc_info`` in
+  the exception view tween.  This makes it possible to inspect exception
+  information within a finished callback.  See
+  https://github.com/Pylons/pyramid/issues/1223.
+
 
 Other Backwards Incompatibilities
 ---------------------------------
@@ -500,6 +505,11 @@ Documentation Enhancements
 - Added a :ref:`quick_tutorial` to go with the Quick Tour
 
 - Many other enhancements.
+
+Scaffolding Enhancements
+------------------------
+
+- All scaffolds have a new HTML + CSS theme.
 
 
 Dependency Changes

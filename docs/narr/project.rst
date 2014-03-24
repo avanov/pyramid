@@ -74,6 +74,9 @@ In :ref:`installing_chapter` we called the virtualenv directory ``env``; the
 following commands assume that our current working directory is the ``env``
 directory.
 
+The below example uses the ``pcreate`` command to create a project with the
+``starter`` scaffold.
+
 On UNIX:
 
 .. code-block:: text
@@ -85,21 +88,7 @@ Or on Windows:
 .. code-block:: text
 
    > %VENV%\Scripts\pcreate -s starter MyProject
-
-The above command uses the ``pcreate`` command to create a project with the
-``starter`` scaffold.  To use a different scaffold, such as
-``alchemy``, you'd just change the ``-s`` argument value.  For example,
-on UNIX:
-
-.. code-block:: text
-
-   $ $VENV/bin/pcreate -s alchemy MyProject
-
-Or on Windows:
-
-.. code-block:: text
-
-   > %VENV%\Scripts\pcreate -s alchemy MyProject
+   
 
 Here's sample output from a run of ``pcreate`` on UNIX for a project we name
 ``MyProject``:
@@ -909,15 +898,22 @@ returns the HTML in a :term:`response`.
      a server restart to reload them.  Production applications should use
      ``pyramid.reload_templates = False``.
 
-.. seealso:: See also :ref:`views_which_use_a_renderer` for more information
+.. seealso::
+
+    See also :ref:`views_which_use_a_renderer` for more information
     about how views, renderers, and templates relate and cooperate.
 
-.. seealso:: Pyramid can also dynamically reload changed Python files.  For
-    more on this see :ref:`reloading_code`.
+.. seealso::
 
-.. seealso:: The :ref:`debug_toolbar` provides interactive access to your
-   application's internals and, should an exception occur, allows interactive
-   access to traceback execution stack frames from the Python interpreter.
+    Pyramid can also dynamically reload changed Python files.  See also
+    :ref:`reloading_code`.
+
+.. seealso::
+
+    See also the :ref:`debug_toolbar`, which provides interactive access to
+    your application's internals and, should an exception occur, allows
+    interactive access to traceback execution stack frames from the Python
+    interpreter.
 
 .. index::
    single: static directory

@@ -118,8 +118,9 @@ Non-Predicate Arguments
 
 ``renderer``
   Denotes the :term:`renderer` implementation which will be used to construct
-  a :term:`response` from the associated view callable's return value. (see
-  also :ref:`renderers_chapter`).
+  a :term:`response` from the associated view callable's return value.
+  
+  .. seealso:: See also :ref:`renderers_chapter`.
 
   This is either a single string term (e.g. ``json``) or a string implying a
   path or :term:`asset specification` (e.g. ``templates/views.pt``) naming a
@@ -217,7 +218,21 @@ Non-Predicate Arguments
   decorator function will be called with the view callable as a single
   argument.  The view callable it is passed will accept ``(context,
   request)``.  The decorator must return a replacement view callable which
-  also accepts ``(context, request)``.
+  also accepts ``(context, request)``. The ``decorator`` may also be an
+  iterable of decorators, in which case they will be applied one after the
+  other to the view, in reverse order. For example::
+
+    @view_config(..., decorator=(decorator2, decorator1))
+    def myview(request):
+      ...
+
+  Is similar to doing::
+
+    @view_config(...)
+    @decorator2
+    @decorator1
+    def myview(request):
+      ...
 
 ``mapper``
   A Python object or :term:`dotted Python name` which refers to a :term:`view
