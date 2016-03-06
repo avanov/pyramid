@@ -600,6 +600,15 @@ class TestAuthTktCookieHelper(unittest.TestCase):
         cookies.load(cookie)
         return cookies.get('auth_tkt')
 
+    def test_init_cookie_str_reissue_invalid(self):
+        self.assertRaises(ValueError, self._makeOne, 'secret', reissue_time='invalid value')
+
+    def test_init_cookie_str_timeout_invalid(self):
+        self.assertRaises(ValueError, self._makeOne, 'secret', timeout='invalid value')
+
+    def test_init_cookie_str_max_age_invalid(self):
+        self.assertRaises(ValueError, self._makeOne, 'secret', max_age='invalid value')
+
     def test_identify_nocookie(self):
         helper = self._makeOne('secret')
         request = self._makeRequest()
@@ -752,15 +761,44 @@ class TestAuthTktCookieHelper(unittest.TestCase):
         result = helper.identify(request)
         self.assertEqual(result, None)
 
-    def test_identify_cookie_timed_out(self):
+    def test_identify_cookie_timeout(self):
         helper = self._makeOne('secret', timeout=1)
-        request = self._makeRequest({'HTTP_COOKIE':'auth_tkt=bogus'})
+        self.assertEqual(helper.timeout, 1)
+
+    def test_identify_cookie_str_timeout(self):
+        helper = self._makeOne('secret', timeout='1')
+        self.assertEqual(helper.timeout, 1)
+
+    def test_identify_cookie_timeout_aged(self):
+        import time
+        helper = self._makeOne('secret', timeout=10)
+        now = time.time()
+        helper.auth_tkt.timestamp = now - 1
+        helper.now = now + 10
+        helper.auth_tkt.tokens = (text_('a'), )
+        request = self._makeRequest('bogus')
         result = helper.identify(request)
-        self.assertEqual(result, None)
+        self.assertFalse(result)
 
     def test_identify_cookie_reissue(self):
         import time
         helper = self._makeOne('secret', timeout=10, reissue_time=0)
+        now = time.time()
+        helper.auth_tkt.timestamp = now
+        helper.now = now + 1
+        helper.auth_tkt.tokens = (text_('a'), )
+        request = self._makeRequest('bogus')
+        result = helper.identify(request)
+        self.assertTrue(result)
+        self.assertEqual(len(request.callbacks), 1)
+        response = DummyResponse()
+        request.callbacks[0](request, response)
+        self.assertEqual(len(response.headerlist), 3)
+        self.assertEqual(response.headerlist[0][0], 'Set-Cookie')
+
+    def test_identify_cookie_str_reissue(self):
+        import time
+        helper = self._makeOne('secret', timeout=10, reissue_time='0')
         now = time.time()
         helper.auth_tkt.timestamp = now
         helper.now = now + 1
@@ -1060,12 +1098,27 @@ class TestAuthTktCookieHelper(unittest.TestCase):
     def test_remember_max_age(self):
         helper = self._makeOne('secret')
         request = self._makeRequest()
+        result = helper.remember(request, 'userid', max_age=500)
+        values = self._parseHeaders(result)
+        self.assertEqual(len(result), 3)
+
+        self.assertEqual(values[0]['max-age'], '500')
+        self.assertTrue(values[0]['expires'])
+
+    def test_remember_str_max_age(self):
+        helper = self._makeOne('secret')
+        request = self._makeRequest()
         result = helper.remember(request, 'userid', max_age='500')
         values = self._parseHeaders(result)
         self.assertEqual(len(result), 3)
 
         self.assertEqual(values[0]['max-age'], '500')
         self.assertTrue(values[0]['expires'])
+
+    def test_remember_str_max_age_invalid(self):
+        helper = self._makeOne('secret')
+        request = self._makeRequest()
+        self.assertRaises(ValueError, helper.remember, request, 'userid', max_age='invalid value')
 
     def test_remember_tokens(self):
         helper = self._makeOne('secret')
@@ -1211,29 +1264,28 @@ class Test_parse_ticket(unittest.TestCase):
         self._assertRaisesBadTicket('secret', ticket, '0.0.0.0')
 
     def test_correct_with_user_data(self):
-        ticket = '66f9cc3e423dc57c91df696cf3d1f0d80000000auserid!a,b!'
+        ticket = text_('66f9cc3e423dc57c91df696cf3d1f0d80000000auserid!a,b!')
         result = self._callFUT('secret', ticket, '0.0.0.0')
         self.assertEqual(result, (10, 'userid', ['a', 'b'], ''))
 
     def test_correct_with_user_data_sha512(self):
-        ticket = '7d947cdef99bad55f8e3382a8bd089bb9dd0547f7925b7d189adc1160cab'\
-                 '0ec0e6888faa41eba641a18522b26f19109f3ffafb769767ba8a26d02aae'\
-                 'ae56599a0000000auserid!a,b!'
+        ticket = text_('7d947cdef99bad55f8e3382a8bd089bb9dd0547f7925b7d189adc1'
+                       '160cab0ec0e6888faa41eba641a18522b26f19109f3ffafb769767'
+                       'ba8a26d02aaeae56599a0000000auserid!a,b!')
         result = self._callFUT('secret', ticket, '0.0.0.0', 'sha512')
         self.assertEqual(result, (10, 'userid', ['a', 'b'], ''))
 
     def test_ipv4(self):
-        ticket = 'b3e7156db4f8abde4439c4a6499a0668f9e7ffd7fa27b798400ecdade8d7'\
-                 '6c530000000auserid!'
+        ticket = text_('b3e7156db4f8abde4439c4a6499a0668f9e7ffd7fa27b798400ecd'
+                       'ade8d76c530000000auserid!')
         result = self._callFUT('secret', ticket, '198.51.100.1', 'sha256')
         self.assertEqual(result, (10, 'userid', [''], ''))
 
     def test_ipv6(self):
-        ticket = 'd025b601a0f12ca6d008aa35ff3a22b7d8f3d1c1456c85becf8760cd7a2f'\
-                 'a4910000000auserid!'
+        ticket = text_('d025b601a0f12ca6d008aa35ff3a22b7d8f3d1c1456c85becf8760'
+                       'cd7a2fa4910000000auserid!')
         result = self._callFUT('secret', ticket, '2001:db8::1', 'sha256')
         self.assertEqual(result, (10, 'userid', [''], ''))
-        pass
 
 class TestSessionAuthenticationPolicy(unittest.TestCase):
     def _getTargetClass(self):

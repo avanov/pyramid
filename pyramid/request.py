@@ -1,3 +1,4 @@
+from collections import deque
 import json
 
 from zope.interface import implementer
@@ -7,33 +8,43 @@ from webob import BaseRequest
 
 from pyramid.interfaces import (
     IRequest,
+    IRequestExtensions,
     IResponse,
     ISessionFactory,
-    IResponseFactory,
     )
 
 from pyramid.compat import (
     text_,
     bytes_,
     native_,
+    iteritems_,
     )
 
 from pyramid.decorator import reify
 from pyramid.i18n import LocalizerRequestMixin
-from pyramid.response import Response
+from pyramid.response import Response, _get_response_factory
 from pyramid.security import (
     AuthenticationAPIMixin,
     AuthorizationAPIMixin,
     )
 from pyramid.url import URLMethodsMixin
-from pyramid.util import InstancePropertyMixin
+from pyramid.util import (
+    InstancePropertyHelper,
+    InstancePropertyMixin,
+)
 
 class TemplateContext(object):
     pass
 
 class CallbackMethodsMixin(object):
-    response_callbacks = ()
-    finished_callbacks = ()
+    @reify
+    def finished_callbacks(self):
+        return deque()
+
+    @reify
+    def response_callbacks(self):
+        return deque()
+
     def add_response_callback(self, callback):
         """
         Add a callback to the set of callbacks to be called by the
@@ -59,8 +70,8 @@ class CallbackMethodsMixin(object):
         called if an exception happens in application code, or if the
         response object returned by :term:`view` code is invalid.
 
-        All response callbacks are called *after* the
-        :class:`pyramid.events.NewResponse` event is sent.
+        All response callbacks are called *after* the tweens and
+        *before* the :class:`pyramid.events.NewResponse` event is sent.
 
         Errors raised by callbacks are not handled specially.  They
         will be propagated to the caller of the :app:`Pyramid`
@@ -71,16 +82,12 @@ class CallbackMethodsMixin(object):
             See also :ref:`using_response_callbacks`.
         """
 
-        callbacks = self.response_callbacks
-        if not callbacks:
-            callbacks = []
-        callbacks.append(callback)
-        self.response_callbacks = callbacks
+        self.response_callbacks.append(callback)
 
     def _process_response_callbacks(self, response):
         callbacks = self.response_callbacks
         while callbacks:
-            callback = callbacks.pop(0)
+            callback = callbacks.popleft()
             callback(self, response)
 
     def add_finished_callback(self, callback):
@@ -130,17 +137,12 @@ class CallbackMethodsMixin(object):
 
             See also :ref:`using_finished_callbacks`.
         """
-
-        callbacks = self.finished_callbacks
-        if not callbacks:
-            callbacks = []
-        callbacks.append(callback)
-        self.finished_callbacks = callbacks
+        self.finished_callbacks.append(callback)
 
     def _process_finished_callbacks(self):
         callbacks = self.finished_callbacks
         while callbacks:
-            callback = callbacks.pop(0)
+            callback = callbacks.popleft()
             callback(self)
 
 @implementer(IRequest)
@@ -177,6 +179,7 @@ class Request(
     exc_info = None
     matchdict = None
     matched_route = None
+    request_iface = IRequest
 
     ResponseClass = Response
 
@@ -213,10 +216,8 @@ class Request(
         right" attributes (e.g. by calling ``request.response.set_cookie()``)
         within a view that uses a renderer.  Mutations to this response object
         will be preserved in the response sent to the client."""
-        registry = self.registry
-        response_factory = registry.queryUtility(IResponseFactory,
-                                                 default=Response)
-        return response_factory()
+        response_factory = _get_response_factory(self.registry)
+        return response_factory(self)
 
     def is_response(self, ob):
         """ Return ``True`` if the object passed as ``ob`` is a valid
@@ -233,7 +234,7 @@ class Request(
     def json_body(self):
         return json.loads(text_(self.body, self.charset))
 
-    
+
 def route_request_iface(name, bases=()):
     # zope.interface treats the __name__ as the __doc__ and changes __name__
     # to None for interfaces that contain spaces if you do not pass a
@@ -247,8 +248,9 @@ def route_request_iface(name, bases=()):
     iface.combined = InterfaceClass(
         '%s_combined_IRequest' % name,
         bases=(iface, IRequest),
-        __doc__ = 'route_request_iface-generated combined interface')
+        __doc__='route_request_iface-generated combined interface')
     return iface
+
 
 def add_global_response_headers(request, headerlist):
     def add_headers(request, response):
@@ -309,3 +311,22 @@ def call_app_with_subpath_as_path_info(request, app):
     new_request.environ['PATH_INFO'] = new_path_info
 
     return new_request.get_response(app)
+
+def apply_request_extensions(request, extensions=None):
+    """Apply request extensions (methods and properties) to an instance of
+    :class:`pyramid.interfaces.IRequest`. This method is dependent on the
+    ``request`` containing a properly initialized registry.
+
+    After invoking this method, the ``request`` should have the methods
+    and properties that were defined using
+    :meth:`pyramid.config.Configurator.add_request_method`.
+    """
+    if extensions is None:
+        extensions = request.registry.queryUtility(IRequestExtensions)
+    if extensions is not None:
+        for name, fn in iteritems_(extensions.methods):
+            method = fn.__get__(request, request.__class__)
+            setattr(request, name, method)
+
+        InstancePropertyHelper.apply_properties(
+            request, extensions.descriptors)

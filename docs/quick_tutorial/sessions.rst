@@ -13,10 +13,10 @@ When people use your web application, they frequently perform a task
 that requires semi-permanent data to be saved. For example, a shopping
 cart. This is called a :term:`session`.
 
-Pyramid has basic built-in support for sessions, with add-ons
-or your own custom sessioning engine) that can provide
-richer session support. Let's take a look at the
-:ref:`built-in sessioning support <sessions_chapter>`.
+Pyramid has basic built-in support for sessions.  Third party packages such as
+``pyramid_redis_sessions`` provide richer session support.  Or you can create
+your own custom sessioning engine.  Let's take a look at the
+:doc:`built-in sessioning support <../narr/sessions>`.
 
 Objectives
 ==========
@@ -89,7 +89,7 @@ when you add an item using a form ``POST``, the site usually issues a
 second HTTP Redirect web request to view the new item. You might want a
 message to appear after that second web request saying "Your item was
 added." You can't just return it in the web response for the POST,
-as it will be tossed out during the second web requests.
+as it will be tossed out during the second web request.
 
 Flash messages are a technique where messages can be stored between
 requests, using sessions, then removed when they finally get displayed.

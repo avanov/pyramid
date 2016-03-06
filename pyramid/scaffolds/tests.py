@@ -1,18 +1,18 @@
 import sys
 import os
-import pkg_resources
 import shutil
 import subprocess
 import tempfile
 import time
 
 try:
+    import http.client as httplib
+except ImportError:
     import httplib
-except ImportError: # pragma: no cover
-    import http.client as httplib #py3
+
 
 class TemplateTest(object):
-    def make_venv(self, directory): # pragma: no cover
+    def make_venv(self, directory):  # pragma: no cover
         import virtualenv
         from virtualenv import Logger
         logger = Logger([(Logger.level_for_integer(2), sys.stdout)])
@@ -21,12 +21,14 @@ class TemplateTest(object):
                                       site_packages=False,
                                       clear=False,
                                       unzip_setuptools=True)
-    def install(self, tmpl_name): # pragma: no cover
+
+    def install(self, tmpl_name):  # pragma: no cover
         try:
             self.old_cwd = os.getcwd()
             self.directory = tempfile.mkdtemp()
             self.make_venv(self.directory)
-            os.chdir(pkg_resources.get_distribution('pyramid').location)
+            here = os.path.abspath(os.path.dirname(__file__))
+            os.chdir(os.path.dirname(os.path.dirname(here)))
             subprocess.check_call(
                 [os.path.join(self.directory, 'bin', 'python'),
                  'setup.py', 'develop'])
@@ -58,7 +60,7 @@ class TemplateTest(object):
                     if hastoolbar:
                         assert toolbarchunk in data, ininame
                     else:
-                        assert not toolbarchunk in data, ininame
+                        assert toolbarchunk not in data, ininame
                 finally:
                     proc.terminate()
         finally:

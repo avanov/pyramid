@@ -16,6 +16,11 @@ Glossary
      An object which, provided a :term:`WSGI` environment as a single
      positional argument, returns a Pyramid-compatible request.
 
+   response factory
+     An object which, provided a :term:`request` as a single positional
+     argument, returns a Pyramid-compatible response. See
+     :class:`pyramid.interfaces.IResponseFactory`.
+
    response
      An object returned by a :term:`view callable` that represents response
      data returned to the requesting user agent.  It must implement the
@@ -229,7 +234,7 @@ Glossary
      object *location-aware*.
 
    permission
-     A string or unicode object that represents an action being taken against
+     A string or Unicode object that represents an action being taken against
      a :term:`context` resource.  A permission is associated with a view name
      and a resource type by the developer.  Resources are decorated with
      security declarations (e.g. an :term:`ACL`), which reference these
@@ -268,7 +273,7 @@ Glossary
      (Allow, 'bob', 'read'), (Deny, 'fred', 'write')]``.  If an ACL is
      attached to a resource instance, and that resource is findable via the
      context resource, it will be consulted any active security policy to
-     determine wither a particular request can be fulfilled given the
+     determine whether a particular request can be fulfilled given the
      :term:`authentication` information in the request.
 
    authentication
@@ -286,13 +291,22 @@ Glossary
      :term:`authorization policy`.
 
    principal
-     A *principal* is a string or unicode object representing a userid
-     or a group id.  It is provided by an :term:`authentication
-     policy`.  For example, if a user had the user id "bob", and Bob
-     was part of two groups named "group foo" and "group bar", the
-     request might have information attached to it that would
-     indicate that Bob was represented by three principals: "bob",
-     "group foo" and "group bar".
+     A *principal* is a string or Unicode object representing an entity,
+     typically a user or group. Principals are provided by an
+     :term:`authentication policy`. For example, if a user has the
+     :term:`userid` `bob`, and is a member of two groups named `group foo` and
+     `group bar`, then the request might have information attached to it
+     indicating that Bob was represented by three principals: `bob`, `group
+     foo` and `group bar`.
+
+   userid
+     A *userid* is a string or Unicode object used to identify and authenticate
+     a real-world user or client. A userid is supplied to an
+     :term:`authentication policy` in order to discover the user's
+     :term:`principals <principal>`. In the authentication policies which
+     :app:`Pyramid` provides, the default behavior returns the user's userid as
+     a principal, but this is not strictly necessary in custom policies that
+     define their principals differently.
 
    authorization policy
      An authorization policy in :app:`Pyramid` terms is a bit of
@@ -353,13 +367,13 @@ Glossary
      file.  It was developed by Ian Bicking.
 
    Chameleon
-     `chameleon <http://chameleon.repoze.org>`_ is an attribute language
-     template compiler which supports the :term:`ZPT` templating
-     specification.  It is written and maintained by Malthe Borch.  It has
-     several extensions, such as the ability to use bracketed (Mako-style)
-     ``${name}`` syntax.  It is also much faster than the reference
-     implementation of ZPT.  :app:`Pyramid` offers Chameleon templating out
-     of the box in ZPT and text flavors.
+     `chameleon <https://chameleon.readthedocs.org/en/latest/>`_ is an
+     attribute language template compiler which supports the :term:`ZPT`
+     templating specification. It is written and maintained by Malthe Borch. It
+     has several extensions, such as the ability to use bracketed (Mako-style)
+     ``${name}`` syntax. It is also much faster than the reference
+     implementation of ZPT. :app:`Pyramid` offers Chameleon templating out of
+     the box in ZPT and text flavors.
 
    ZPT
      The `Zope Page Template <http://wiki.zope.org/ZPT/FrontPage>`_
@@ -749,8 +763,15 @@ Glossary
      made.  For example the word "java" might be translated
      differently if the translation domain is "programming-languages"
      than would be if the translation domain was "coffee".  A
-     translation domain is represnted by a collection of ``.mo`` files
+     translation domain is represented by a collection of ``.mo`` files
      within one or more :term:`translation directory` directories.
+
+   Translation Context
+     A string representing the "context" in which a translation was
+     made within a given :term:`translation domain`. See the gettext
+     documentation, `11.2.5 Using contexts for solving ambiguities
+     <https://www.gnu.org/software/gettext/manual/gettext.html#Contexts>`_
+     for more information.
 
    Translator
      A callable which receives a :term:`translation string` and returns a
@@ -794,15 +815,15 @@ Glossary
      library, used by the :app:`Pyramid` translation machinery.
 
    Babel
-     A `collection of tools <http://babel.edgewall.org/>`_ for
-     internationalizing Python applications.  :app:`Pyramid` does
-     not depend on Babel to operate, but if Babel is installed,
-     additional locale functionality becomes available to your
-     application.
+     A `collection of tools <http://babel.pocoo.org/en/latest/>`_ for
+     internationalizing Python applications. :app:`Pyramid` does not depend on
+     Babel to operate, but if Babel is installed, additional locale
+     functionality becomes available to your application.
 
    Lingua
-     A package by Wichert Akkerman which provides :term:`Babel` message
-     extractors for Python source files and Chameleon ZPT template files.
+     A package by Wichert Akkerman which provides the ``pot-create``
+     command to extract translateable messages from Python sources
+     and Chameleon ZPT template files.
 
    Message Identifier
      A string used as a translation lookup key during localization.
@@ -935,13 +956,13 @@ Glossary
      `Akhet <http://docs.pylonsproject.org/projects/akhet/en/latest/>`_ is a 
      Pyramid library and demo application with a Pylons-like feel.
      It's most known for its former application scaffold, which helped 
-     users transition from Pylons and those prefering a more Pylons-like API.
+     users transition from Pylons and those preferring a more Pylons-like API.
      The scaffold has been retired but the demo plays a similar role. 
 
-   Pyramid Cookbook
-     Additional documentation for Pyramid which presents topical,
-     practical uses of Pyramid:
-     http://docs.pylonsproject.org/projects/pyramid_cookbook/en/latest.
+   Pyramid Community Cookbook
+     Additional, community-based documentation for Pyramid which presents
+     topical, practical uses of Pyramid:
+     :ref:`Pyramid Community Cookbook <cookbook:pyramid-cookbook>`
 
    distutils
      The standard system for packaging and distributing Python packages.  See
@@ -1067,3 +1088,7 @@ Glossary
       data in a Redis database.  See 
       https://pypi.python.org/pypi/pyramid_redis_sessions for more information.
 
+   cache busting
+      A technique used when serving a cacheable static asset in order to force
+      a client to query the new version of the asset. See :ref:`cache_busting`
+      for more information.

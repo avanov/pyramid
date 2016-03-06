@@ -5,7 +5,7 @@ import textwrap
 
 from pyramid.compat import url_unquote
 from pyramid.request import Request
-from pyramid.paster import get_app
+from pyramid.paster import get_app, setup_logging
 from pyramid.scripts.common import parse_vars
 
 def main(argv=sys.argv, quiet=False):
@@ -14,7 +14,7 @@ def main(argv=sys.argv, quiet=False):
 
 class PRequestCommand(object):
     description = """\
-    Run a request for the described application.
+    Submit a HTTP request to a web application.
 
     This command makes an artifical request to a web application that uses a
     PasteDeploy (.ini) configuration file for the server and application.
@@ -52,8 +52,10 @@ class PRequestCommand(object):
     parser.add_option(
         '-n', '--app-name',
         dest='app_name',
-        metavar= 'NAME',
-        help="Load the named application from the config file (default 'main')",
+        metavar='NAME',
+        help=(
+            "Load the named application from the config file (default 'main')"
+        ),
         type="string",
         )
     parser.add_option(
@@ -62,8 +64,10 @@ class PRequestCommand(object):
         metavar='NAME:VALUE',
         type='string',
         action='append',
-        help="Header to add to request (you can use this option multiple times)"
-        )
+        help=(
+            "Header to add to request (you can use this option multiple times)"
+        ),
+    )
     parser.add_option(
         '-d', '--display-headers',
         dest='display_headers',
@@ -97,12 +101,18 @@ class PRequestCommand(object):
         if not self.quiet:
             print(msg)
 
+    def configure_logging(self, app_spec):
+        setup_logging(app_spec)
+
     def run(self):
         if not len(self.args) >= 2:
             self.out('You must provide at least two arguments')
             return 2
         app_spec = self.args[0]
         path = self.args[1]
+
+        self.configure_logging(app_spec)
+
         if not path.startswith('/'):
             path = '/' + path
 
@@ -161,7 +171,7 @@ class PRequestCommand(object):
             if name.lower() == 'content-type':
                 name = 'CONTENT_TYPE'
             else:
-                name = 'HTTP_'+name.upper().replace('-', '_')
+                name = 'HTTP_' + name.upper().replace('-', '_')
             environ[name] = value
 
         request = Request.blank(path, environ=environ)

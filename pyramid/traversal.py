@@ -14,12 +14,8 @@ from pyramid.interfaces import (
     VH_ROOT_KEY,
     )
 
-with warnings.catch_warnings():
-    warnings.filterwarnings('ignore')
-    from pyramid.interfaces import IContextURL
-
 from pyramid.compat import (
-    PY3,
+    PY2,
     native_,
     text_,
     ascii_native_,
@@ -34,6 +30,10 @@ from pyramid.encode import url_quote
 from pyramid.exceptions import URLDecodeError
 from pyramid.location import lineage
 from pyramid.threadlocal import get_current_registry
+
+with warnings.catch_warnings():
+    warnings.filterwarnings('ignore')
+    from pyramid.interfaces import IContextURL
 
 empty = text_('')
 
@@ -575,26 +575,8 @@ the ``safe`` argument to this function.  This corresponds to the
 """
 
 
-if PY3: # pragma: no cover
+if PY2:
     # special-case on Python 2 for speed?  unchecked
-    def quote_path_segment(segment, safe=''):
-        """ %s """ % quote_path_segment_doc
-        # The bit of this code that deals with ``_segment_cache`` is an
-        # optimization: we cache all the computation of URL path segments
-        # in this module-scope dictionary with the original string (or
-        # unicode value) as the key, so we can look it up later without
-        # needing to reencode or re-url-quote it
-        try:
-            return _segment_cache[(segment, safe)]
-        except KeyError:
-            if segment.__class__ not in (text_type, binary_type):
-                segment = str(segment)
-            result = url_quote(native_(segment, 'utf-8'), safe)
-            # we don't need a lock to mutate _segment_cache, as the below
-            # will generate exactly one Python bytecode (STORE_SUBSCR)
-            _segment_cache[(segment, safe)] = result
-            return result
-else:
     def quote_path_segment(segment, safe=''):
         """ %s """ % quote_path_segment_doc
         # The bit of this code that deals with ``_segment_cache`` is an
@@ -613,7 +595,25 @@ else:
             # will generate exactly one Python bytecode (STORE_SUBSCR)
             _segment_cache[(segment, safe)] = result
             return result
-    
+else:
+    def quote_path_segment(segment, safe=''):
+        """ %s """ % quote_path_segment_doc
+        # The bit of this code that deals with ``_segment_cache`` is an
+        # optimization: we cache all the computation of URL path segments
+        # in this module-scope dictionary with the original string (or
+        # unicode value) as the key, so we can look it up later without
+        # needing to reencode or re-url-quote it
+        try:
+            return _segment_cache[(segment, safe)]
+        except KeyError:
+            if segment.__class__ not in (text_type, binary_type):
+                segment = str(segment)
+            result = url_quote(native_(segment, 'utf-8'), safe)
+            # we don't need a lock to mutate _segment_cache, as the below
+            # will generate exactly one Python bytecode (STORE_SUBSCR)
+            _segment_cache[(segment, safe)] = result
+            return result
+
 slash = text_('/')
 
 @implementer(ITraverser)
@@ -664,10 +664,10 @@ class ResourceTreeTraverser(object):
 
         if VH_ROOT_KEY in environ:
             # HTTP_X_VHM_ROOT
-            vroot_path = decode_path_info(environ[VH_ROOT_KEY]) 
+            vroot_path = decode_path_info(environ[VH_ROOT_KEY])
             vroot_tuple = split_path_info(vroot_path)
             vpath = vroot_path + path # both will (must) be unicode or asciistr
-            vroot_idx = len(vroot_tuple) -1
+            vroot_idx = len(vroot_tuple) - 1
         else:
             vroot_tuple = ()
             vpath = path
@@ -689,34 +689,34 @@ class ResourceTreeTraverser(object):
             vpath_tuple = split_path_info(vpath)
             for segment in vpath_tuple:
                 if segment[:2] == view_selector:
-                    return {'context':ob,
-                            'view_name':segment[2:],
-                            'subpath':vpath_tuple[i+1:],
-                            'traversed':vpath_tuple[:vroot_idx+i+1],
-                            'virtual_root':vroot,
-                            'virtual_root_path':vroot_tuple,
-                            'root':root}
+                    return {'context': ob,
+                            'view_name': segment[2:],
+                            'subpath': vpath_tuple[i + 1:],
+                            'traversed': vpath_tuple[:vroot_idx + i + 1],
+                            'virtual_root': vroot,
+                            'virtual_root_path': vroot_tuple,
+                            'root': root}
                 try:
                     getitem = ob.__getitem__
                 except AttributeError:
-                    return {'context':ob,
-                            'view_name':segment,
-                            'subpath':vpath_tuple[i+1:],
-                            'traversed':vpath_tuple[:vroot_idx+i+1],
-                            'virtual_root':vroot,
-                            'virtual_root_path':vroot_tuple,
-                            'root':root}
+                    return {'context': ob,
+                            'view_name': segment,
+                            'subpath': vpath_tuple[i + 1:],
+                            'traversed': vpath_tuple[:vroot_idx + i + 1],
+                            'virtual_root': vroot,
+                            'virtual_root_path': vroot_tuple,
+                            'root': root}
 
                 try:
                     next = getitem(segment)
                 except KeyError:
-                    return {'context':ob,
-                            'view_name':segment,
-                            'subpath':vpath_tuple[i+1:],
-                            'traversed':vpath_tuple[:vroot_idx+i+1],
-                            'virtual_root':vroot,
-                            'virtual_root_path':vroot_tuple,
-                            'root':root}
+                    return {'context': ob,
+                            'view_name': segment,
+                            'subpath': vpath_tuple[i + 1:],
+                            'traversed': vpath_tuple[:vroot_idx + i + 1],
+                            'virtual_root': vroot,
+                            'virtual_root_path': vroot_tuple,
+                            'root': root}
                 if i == vroot_idx:
                     vroot = next
                 ob = next

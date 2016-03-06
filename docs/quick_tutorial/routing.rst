@@ -14,7 +14,7 @@ Writing web applications usually means sophisticated URL design. We
 just saw some Pyramid machinery for requests and views. Let's look at
 features that help in routing.
 
-Previously we saw the basics of routing URLs to views in
+Previously we saw the basics of routing URLs to views in Pyramid.
 
 - Your project's "setup" code registers a route name to be used when
   matching part of the URL
@@ -23,14 +23,14 @@ Previously we saw the basics of routing URLs to views in
 
 .. note::
 
-    Why do this twice? Other Python web frameworks let you create a
-    route and associate it with a view in one step. As
-    illustrated in :ref:`routes_need_ordering`, multiple routes might match the
-    same URL pattern. Rather than provide ways to help guess, Pyramid lets you
-    be explicit in ordering. Pyramid also gives facilities to avoid the
-    problem.  It's relatively easy to build a system that uses implicit route
-    ordering with Pyramid too.  See `The Groundhog series of screencasts 
-    <http://bfg.repoze.org/videos#groundhog1>`_ if you're interested in
+    Why do this twice? Other Python web frameworks let you create a route and
+    associate it with a view in one step. As illustrated in
+    :ref:`routes_need_ordering`, multiple routes might match the same URL
+    pattern. Rather than provide ways to help guess, Pyramid lets you be
+    explicit in ordering. Pyramid also gives facilities to avoid the problem.
+    It's relatively easy to build a system that uses implicit route ordering
+    with Pyramid too. See `The Groundhog series of screencasts
+    <http://static.repoze.org/casts/videotags.html>`_ if you're interested in
     doing so.
 
 Objectives

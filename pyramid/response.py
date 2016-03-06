@@ -8,7 +8,8 @@ import venusian
 
 from webob import Response as _Response
 from zope.interface import implementer
-from pyramid.interfaces import IResponse
+from pyramid.interfaces import IResponse, IResponseFactory
+
 
 def init_mimetypes(mimetypes):
     # this is a function so it can be unittested
@@ -52,15 +53,23 @@ class FileResponse(Response):
     """
     def __init__(self, path, request=None, cache_max_age=None,
                  content_type=None, content_encoding=None):
-        super(FileResponse, self).__init__(conditional_response=True)
+        if content_type is None:
+            content_type, content_encoding = mimetypes.guess_type(
+                path,
+                strict=False
+                )
+            if content_type is None:
+                content_type = 'application/octet-stream'
+            # str-ifying content_type is a workaround for a bug in Python 2.7.7
+            # on Windows where mimetypes.guess_type returns unicode for the
+            # content_type.
+            content_type = str(content_type)
+        super(FileResponse, self).__init__(
+            conditional_response=True,
+            content_type=content_type,
+            content_encoding=content_encoding
+        )
         self.last_modified = getmtime(path)
-        if content_type is None:
-            content_type, content_encoding = mimetypes.guess_type(path,
-                                                                  strict=False)
-        if content_type is None:
-            content_type = 'application/octet-stream'
-        self.content_type = content_type
-        self.content_encoding = content_encoding
         content_length = getsize(path)
         f = open(path, 'rb')
         app_iter = None
@@ -135,7 +144,7 @@ class response_adapter(object):
         @response_adapter(dict, list)
         def myadapter(ob):
             return Response(json.dumps(ob))
-        
+
     This method will have no effect until a :term:`scan` is performed
     agains the package or module which contains it, ala:
 
@@ -159,3 +168,15 @@ class response_adapter(object):
     def __call__(self, wrapped):
         self.venusian.attach(wrapped, self.register, category='pyramid')
         return wrapped
+
+
+def _get_response_factory(registry):
+    """ Obtain a :class: `pyramid.response.Response` using the
+    `pyramid.interfaces.IResponseFactory`.
+    """
+    response_factory = registry.queryUtility(
+        IResponseFactory,
+        default=lambda r: Response()
+    )
+
+    return response_factory

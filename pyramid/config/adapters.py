@@ -143,7 +143,7 @@ class AdaptersConfiguratorMixin(object):
         Adds a subscriber predicate factory.  The associated subscriber
         predicate can later be named as a keyword argument to
         :meth:`pyramid.config.Configurator.add_subscriber` in the
-        ``**predicates`` anonyous keyword argument dictionary.
+        ``**predicates`` anonymous keyword argument dictionary.
 
         ``name`` should be the name of the predicate.  It must be a valid
         Python identifier (it will be used as a ``**predicates`` keyword
@@ -255,7 +255,7 @@ class AdaptersConfiguratorMixin(object):
         See :ref:`changing_the_traverser` for more information.
         """
         iface = self.maybe_dotted(iface)
-        adapter= self.maybe_dotted(adapter)
+        adapter = self.maybe_dotted(adapter)
         def register(iface=iface):
             if iface is None:
                 iface = Interface

@@ -3,6 +3,7 @@ import inspect
 
 from pyramid.compat import (
     bytes_,
+    getargspec,
     is_nonstr_iter,
     )
 
@@ -150,7 +151,7 @@ class PredicateList(object):
                     hashes = [hashes]
                 for h in hashes:
                     phash.update(bytes_(h))
-                weights.append(1 << n+1)
+                weights.append(1 << n + 1)
                 preds.append(pred)
         if kw:
             raise ConfigurationError('Unknown predicate values: %r' % (kw,))
@@ -201,7 +202,7 @@ def takes_one_arg(callee, attr=None, argname=None):
             return False
 
     try:
-        argspec = inspect.getargspec(fn)
+        argspec = getargspec(fn)
     except TypeError:
         return False
 

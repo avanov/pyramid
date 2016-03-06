@@ -3,7 +3,6 @@ from codecs import utf_8_decode
 from codecs import utf_8_encode
 import hashlib
 import base64
-import datetime
 import re
 import time as time_mod
 import warnings
@@ -36,6 +35,7 @@ from pyramid.security import (
 from pyramid.util import strings_differ
 
 VALID_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9+_-]*$")
+
 
 class CallbackAuthenticationPolicy(object):
     """ Abstract class """
@@ -78,10 +78,10 @@ class CallbackAuthenticationPolicy(object):
             debug and self._log(
                 ('use of userid %r is disallowed by any built-in Pyramid '
                  'security policy, returning None' % userid),
-                'authenticated_userid' ,
+                'authenticated_userid',
                 request)
             return None
-            
+
         if self.callback is None:
             debug and self._log(
                 'there was no groupfinder callback; returning %r' % (userid,),
@@ -147,7 +147,7 @@ class CallbackAuthenticationPolicy(object):
                 request
                 )
             return effective_principals
-            
+
         if self.callback is None:
             debug and self._log(
                 'groupfinder callback is None, so groups is []',
@@ -179,8 +179,9 @@ class CallbackAuthenticationPolicy(object):
                 effective_principals,),
             'effective_principals',
             request
-             )
+        )
         return effective_principals
+
 
 @implementer(IAuthenticationPolicy)
 class RepozeWho1AuthenticationPolicy(CallbackAuthenticationPolicy):
@@ -249,7 +250,7 @@ class RepozeWho1AuthenticationPolicy(CallbackAuthenticationPolicy):
                 'authenticated_userid',
                 request)
             return None
-            
+
         if self._clean_principal(userid) is None:
             self.debug and self._log(
                 ('use of userid %r is disallowed by any built-in Pyramid '
@@ -335,11 +336,11 @@ class RepozeWho1AuthenticationPolicy(CallbackAuthenticationPolicy):
         effective_principals.extend(groups)
         return effective_principals
 
-    def remember(self, request, principal, **kw):
-        """ Store the ``principal`` as ``repoze.who.userid``.
-        
+    def remember(self, request, userid, **kw):
+        """ Store the ``userid`` as ``repoze.who.userid``.
+
         The identity to authenticated to :mod:`repoze.who`
-        will contain the given principal as ``userid``, and
+        will contain the given userid as ``userid``, and
         provide all keyword arguments as additional identity
         keys. Useful keys could be ``max_age`` or ``userdata``.
         """
@@ -348,7 +349,7 @@ class RepozeWho1AuthenticationPolicy(CallbackAuthenticationPolicy):
             return []
         environ = request.environ
         identity = kw
-        identity['repoze.who.userid'] = principal
+        identity['repoze.who.userid'] = userid
         return identifier.remember(environ, identity)
 
     def forget(self, request):
@@ -404,7 +405,7 @@ class RemoteUserAuthenticationPolicy(CallbackAuthenticationPolicy):
         """ The ``REMOTE_USER`` value found within the ``environ``."""
         return request.environ.get(self.environ_key)
 
-    def remember(self, request, principal, **kw):
+    def remember(self, request, userid, **kw):
         """ A no-op. The ``REMOTE_USER`` does not provide a protocol for
         remembering the user. This will be application-specific and can
         be done somewhere else or in a subclass."""
@@ -652,7 +653,7 @@ class AuthTktAuthenticationPolicy(CallbackAuthenticationPolicy):
         if result:
             return result['userid']
 
-    def remember(self, request, principal, **kw):
+    def remember(self, request, userid, **kw):
         """ Accepts the following kw args: ``max_age=<int-seconds>,
         ``tokens=<sequence-of-ascii-strings>``.
 
@@ -660,7 +661,7 @@ class AuthTktAuthenticationPolicy(CallbackAuthenticationPolicy):
         the response.
 
         """
-        return self.cookie.remember(request, principal, **kw)
+        return self.cookie.remember(request, userid, **kw)
 
     def forget(self, request):
         """ A list of headers which will delete appropriate cookies."""
@@ -741,7 +742,7 @@ def parse_ticket(secret, ticket, ip, hashalg='md5'):
     If the ticket cannot be parsed, a ``BadTicket`` exception will be raised
     with an explanation.
     """
-    ticket = ticket.strip('"')
+    ticket = native_(ticket).strip('"')
     digest_size = hashlib.new(hashalg).digest_size * 2
     digest = ticket[:digest_size]
     try:
@@ -840,23 +841,23 @@ class AuthTktCookieHelper(object):
                  hashalg='md5', parent_domain=False, domain=None):
 
         serializer = _SimpleSerializer()
-            
+
         self.cookie_profile = CookieProfile(
-            cookie_name = cookie_name,
-            secure = secure,
-            max_age = max_age,
-            httponly = http_only,
-            path = path,
+            cookie_name=cookie_name,
+            secure=secure,
+            max_age=max_age,
+            httponly=http_only,
+            path=path,
             serializer=serializer
-            )
+        )
 
         self.secret = secret
         self.cookie_name = cookie_name
         self.secure = secure
         self.include_ip = include_ip
-        self.timeout = timeout
-        self.reissue_time = reissue_time
-        self.max_age = max_age
+        self.timeout = timeout if timeout is None else int(timeout)
+        self.reissue_time = reissue_time if reissue_time is None else int(reissue_time)
+        self.max_age = max_age if max_age is None else int(max_age)
         self.wild_domain = wild_domain
         self.parent_domain = parent_domain
         self.domain = domain
@@ -883,7 +884,7 @@ class AuthTktCookieHelper(object):
         kw['domains'] = domains
         if max_age is not None:
             kw['max_age'] = max_age
-            
+
         headers = profile.get_headers(value, **kw)
         return headers
 
@@ -929,7 +930,7 @@ class AuthTktCookieHelper(object):
 
         if reissue and not hasattr(request, '_authtkt_reissued'):
             if ( (now - timestamp) > self.reissue_time ):
-                # work around https://github.com/Pylons/pyramid/issues#issue/108
+                # See https://github.com/Pylons/pyramid/issues#issue/108
                 tokens = list(filter(None, tokens))
                 headers = self.remember(request, userid, max_age=self.max_age,
                                         tokens=tokens)
@@ -976,8 +977,7 @@ class AuthTktCookieHelper(object):
           Tokens are available in the returned identity when an auth_tkt is
           found in the request and unpacked.  Default: ``()``.
         """
-        if max_age is None:
-            max_age = self.max_age
+        max_age = self.max_age if max_age is None else int(max_age)
 
         environ = request.environ
 
@@ -1061,13 +1061,13 @@ class SessionAuthenticationPolicy(CallbackAuthenticationPolicy):
         self.userid_key = prefix + 'userid'
         self.debug = debug
 
-    def remember(self, request, principal, **kw):
-        """ Store a principal in the session."""
-        request.session[self.userid_key] = principal
+    def remember(self, request, userid, **kw):
+        """ Store a userid in the session."""
+        request.session[self.userid_key] = userid
         return []
 
     def forget(self, request):
-        """ Remove the stored principal from the session."""
+        """ Remove the stored userid from the session."""
         if self.userid_key in request.session:
             del request.session[self.userid_key]
         return []
@@ -1132,7 +1132,7 @@ class BasicAuthAuthenticationPolicy(CallbackAuthenticationPolicy):
         if credentials:
             return credentials[0]
 
-    def remember(self, request, principal, **kw):
+    def remember(self, request, userid, **kw):
         """ A no-op. Basic authentication does not provide a protocol for
         remembering the user. Credentials are sent on every request.
 
@@ -1188,4 +1188,3 @@ class _SimpleSerializer(object):
 
     def dumps(self, appstruct):
         return bytes_(appstruct)
-

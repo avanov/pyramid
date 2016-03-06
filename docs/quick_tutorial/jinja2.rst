@@ -6,7 +6,7 @@
 
 We just said Pyramid doesn't prefer one templating language over
 another. Time to prove it. Jinja2 is a popular templating system,
-used in Flask and modelled after Django's templates. Let's add
+used in Flask and modeled after Django's templates. Let's add
 ``pyramid_jinja2``, a Pyramid :term:`add-on` which enables Jinja2 as a
 :term:`renderer` in our Pyramid applications.
 
@@ -20,8 +20,8 @@ Objectives
 Steps
 =====
 
-#. In this step let's start by installing the ``pyramid_jinja2``
-   add-on, the copying the ``view_class`` step's directory:
+#. In this step let's start by copying the ``view_class`` step's 
+   directory, and then installing the ``pyramid_jinja2`` add-on. 
 
    .. code-block:: bash
 
@@ -44,12 +44,6 @@ Steps
 
    .. literalinclude:: jinja2/tutorial/home.jinja2
     :language: html
-
-#. Get the ``pyramid.includes`` into the functional test setup in
-   ``jinja2/tutorial/tests.py``:
-
-   .. literalinclude:: jinja2/tutorial/tests.py
-    :linenos:
 
 #. Now run the tests:
 
@@ -78,9 +72,6 @@ Our view code stayed largely the same. We simply changed the file
 extension on the renderer. For the template, the syntax for Chameleon
 and Jinja2's basic variable insertion is very similar.
 
-Our functional tests don't have ``development.ini`` so they needed the
-``pyramid.includes`` to be setup in the test setup.
-
 Extra Credit
 ============
 
@@ -88,9 +79,9 @@ Extra Credit
    dependency manually. What is another way we could have made the
    association?
 
-#. We used ``development.ini`` to get the :term:`configurator` to
-   load ``pyramid_jinja2``'s configuration. What is another way could
-   include it into the config?
+#. We used ``config.include`` which is an imperative configuration to get the
+   :term:`Configurator` to load ``pyramid_jinja2``'s configuration. 
+   What is another way could include it into the config?
 
 .. seealso:: `Jinja2 homepage <http://jinja.pocoo.org/>`_,
    and

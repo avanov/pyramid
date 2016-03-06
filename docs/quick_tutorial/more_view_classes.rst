@@ -34,7 +34,7 @@ that determine which view is matched to a request, based on factors
 such as the request method, the form parameters, etc. These predicates
 provide many axes of flexibility.
 
-The following shows a simple example with four operations operations:
+The following shows a simple example with four operations:
 view a home page which leads to a form, save a change,
 and press the delete button.
 
@@ -47,7 +47,7 @@ Objectives
 
 - Dispatch one route/URL to multiple views based on request data
 
-- Share stated and logic between views and templates via the view class
+- Share states and logic between views and templates via the view class
 
 Steps
 =====
@@ -95,6 +95,23 @@ Steps
    .. literalinclude:: more_view_classes/tutorial/delete.pt
     :language: html
 
+#. Our tests in ``more_view_classes/tutorial/tests.py`` fail, so let's modify
+   them:
+
+   .. literalinclude:: more_view_classes/tutorial/tests.py
+    :linenos:
+
+#. Now run the tests:
+
+   .. code-block:: bash
+
+    $ $VENV/bin/nosetests tutorial
+    .
+    ----------------------------------------------------------------------
+    Ran 2 tests in 0.248s
+
+    OK
+
 #. Run your Pyramid application with:
 
    .. code-block:: bash
@@ -125,7 +142,7 @@ Specifically:
 - The fourth view is returned when clicking on a button such
   as ``<input type="submit" name="form.delete" value="Delete"/>``.
 
-In this step we show using the following information as criteria to
+In this step we show, using the following information as criteria, how to
 decide which view to use:
 
 - Method of the HTTP request (``GET``, ``POST``, etc.)

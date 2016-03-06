@@ -217,7 +217,7 @@ class TestDummyRequest(unittest.TestCase):
     def test_add_response_callback(self):
         request = self._makeOne()
         request.add_response_callback(1)
-        self.assertEqual(request.response_callbacks, [1])
+        self.assertEqual(list(request.response_callbacks), [1])
 
     def test_registry_is_config_registry_when_setup_is_called_after_ctor(self):
         # see https://github.com/Pylons/pyramid/issues/165
@@ -259,7 +259,9 @@ class TestDummyRequest(unittest.TestCase):
         registry = Registry('this_test')
         class ResponseFactory(object):
             pass
-        registry.registerUtility(ResponseFactory, IResponseFactory)
+        registry.registerUtility(
+            lambda r: ResponseFactory(), IResponseFactory
+        )
         request = self._makeOne()
         request.registry = registry
         resp = request.response
@@ -347,6 +349,7 @@ class Test_setUp(unittest.TestCase):
         self.assertEqual(config.registry, current['registry'])
         self.assertEqual(current['registry'].__class__, Registry)
         self.assertEqual(current['request'], None)
+        self.assertEqual(config.package.__name__, 'pyramid.tests')
         self._assertSMHook(get_current_registry)
 
     def test_it_with_registry(self):
@@ -363,6 +366,10 @@ class Test_setUp(unittest.TestCase):
         self._callFUT(request=request)
         current = manager.get()
         self.assertEqual(current['request'], request)
+
+    def test_it_with_package(self):
+        config = self._callFUT(package='pyramid')
+        self.assertEqual(config.package.__name__, 'pyramid')
 
     def test_it_with_hook_zca_false(self):
         from pyramid.registry import Registry

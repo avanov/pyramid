@@ -77,7 +77,7 @@ explanation:
 #. *Lines 12-14*. Use Pyramid's :term:`configurator` to connect
    :term:`view` code to a particular URL :term:`route`.
 
-#. *Lines 6-7*. Implement the view code that generates the
+#. *Lines 6-8*. Implement the view code that generates the
    :term:`response`.
 
 #. *Lines 15-17*. Publish a :term:`WSGI` app using an HTTP
@@ -96,13 +96,13 @@ Extra Credit
 
    .. code-block:: python
 
-      print ('Starting up server on http://localhost:6547')
+      print('Incoming request')
 
    ...instead of:
 
    .. code-block:: python
 
-      print 'Starting up server on http://localhost:6547'
+      print 'Incoming request'
 
 #. What happens if you return a string of HTML? A sequence of integers?
 

@@ -9,7 +9,6 @@ from zope.interface import (
 
 from pyramid.interfaces import (
     IRequest,
-    IResponseFactory,
     ISession,
     )
 
@@ -17,11 +16,13 @@ from pyramid.compat import (
     PY3,
     PYPY,
     class_types,
+    text_,
     )
 
 from pyramid.config import Configurator
 from pyramid.decorator import reify
-from pyramid.response import Response
+from pyramid.path import caller_package
+from pyramid.response import _get_response_factory
 from pyramid.registry import Registry
 
 from pyramid.security import (
@@ -40,6 +41,7 @@ from pyramid.i18n import LocalizerRequestMixin
 from pyramid.request import CallbackMethodsMixin
 from pyramid.url import URLMethodsMixin
 from pyramid.util import InstancePropertyMixin
+
 
 _marker = object()
 
@@ -78,8 +80,8 @@ class DummySecurityPolicy(object):
             effective_principals.extend(self.groupids)
         return effective_principals
 
-    def remember(self, request, principal, **kw):
-        self.remembered = principal
+    def remember(self, request, userid, **kw):
+        self.remembered = userid
         return self.remember_result
 
     def forget(self, request):
@@ -153,8 +155,9 @@ class DummyTemplateRenderer(object):
             if myval != v:
                 raise AssertionError(
                     '\nasserted value for %s: %r\nactual value: %r' % (
-                    k, v, myval))
+                        k, v, myval))
         return True
+
 
 class DummyResource:
     """ A dummy :app:`Pyramid` :term:`resource` object."""
@@ -272,7 +275,7 @@ class DummySession(dict):
         return storage
 
     def new_csrf_token(self):
-        token = '0123456789012345678901234567890123456789'
+        token = text_('0123456789012345678901234567890123456789')
         self['_csrft_'] = token
         return token
 
@@ -326,6 +329,7 @@ class DummyRequest(
     charset = 'UTF-8'
     script_name = ''
     _registry = None
+    request_iface = IRequest
 
     def __init__(self, params=None, environ=None, headers=None, path='/',
                  cookies=None, post=None, **kw):
@@ -382,13 +386,14 @@ class DummyRequest(
 
     @reify
     def response(self):
-        f =  self.registry.queryUtility(IResponseFactory, default=Response)
-        return f()
+        f = _get_response_factory(self.registry)
+        return f(self)
 
 have_zca = True
 
+
 def setUp(registry=None, request=None, hook_zca=True, autocommit=True,
-          settings=None):
+          settings=None, package=None):
     """
     Set :app:`Pyramid` registry and request thread locals for the
     duration of a single unit test.
@@ -432,8 +437,14 @@ def setUp(registry=None, request=None, hook_zca=True, autocommit=True,
     :mod:`zope.component` package cannot be imported, or if
     ``hook_zca`` is ``False``, the hook will not be set.
 
-    If ``settings`` is not None, it must be a dictionary representing the
+    If ``settings`` is not ``None``, it must be a dictionary representing the
     values passed to a Configurator as its ``settings=`` argument.
+
+    If ``package`` is ``None`` it will be set to the caller's package. The
+    ``package`` setting in the :class:`pyramid.config.Configurator` will
+    affect any relative imports made via
+    :meth:`pyramid.config.Configurator.include` or
+    :meth:`pyramid.config.Configurator.maybe_dotted`.
 
     This function returns an instance of the
     :class:`pyramid.config.Configurator` class, which can be
@@ -447,7 +458,10 @@ def setUp(registry=None, request=None, hook_zca=True, autocommit=True,
     manager.clear()
     if registry is None:
         registry = Registry('testing')
-    config = Configurator(registry=registry, autocommit=autocommit)
+    if package is None:
+        package = caller_package()
+    config = Configurator(registry=registry, autocommit=autocommit,
+                          package=package)
     if settings is None:
         settings = {}
     if getattr(registry, 'settings', None) is None:
@@ -505,6 +519,10 @@ def tearDown(unhook_zca=True):
 
 def cleanUp(*arg, **kw):
     """ An alias for :func:`pyramid.testing.setUp`. """
+    package = kw.get('package', None)
+    if package is None:
+        package = caller_package()
+        kw['package'] = package
     return setUp(*arg, **kw)
 
 class DummyRendererFactory(object):
@@ -563,10 +581,13 @@ def skip_on(*platforms): # pragma: no  cover
             skip = True
         if platform == 'py3' and PY3:
             skip = True
+
     def decorator(func):
         if isinstance(func, class_types):
-            if skip: return None
-            else: return func
+            if skip:
+                return None
+            else:
+                return func
         else:
             def wrapper(*args, **kw):
                 if skip:

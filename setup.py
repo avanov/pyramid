@@ -18,19 +18,20 @@ import sys
 from setuptools import setup, find_packages
 
 py_version = sys.version_info[:2]
+is_pypy = '__pypy__' in sys.builtin_module_names
 
 PY3 = py_version[0] == 3
 
 if PY3:
-    if py_version < (3, 2):
-        raise RuntimeError('On Python 3, Pyramid requires Python 3.2 or better')
+    if py_version < (3, 3) and not is_pypy: # PyPy3 masquerades as Python 3.2...
+        raise RuntimeError('On Python 3, Pyramid requires Python 3.3 or better')
 else:
     if py_version < (2, 6):
         raise RuntimeError('On Python 2, Pyramid requires Python 2.6 or better')
 
 here = os.path.abspath(os.path.dirname(__file__))
 try:
-    with open(os.path.join(here, 'README.txt')) as f:
+    with open(os.path.join(here, 'README.rst')) as f:
         README = f.read()
     with open(os.path.join(here, 'CHANGES.txt')) as f:
         CHANGES = f.read()
@@ -56,9 +57,12 @@ if not PY3:
     tests_require.append('zope.component>=3.11.0')
 
 docs_extras = [
-    'Sphinx',
+    'Sphinx >= 1.3.5',
     'docutils',
     'repoze.sphinx.autointerface',
+    'pylons_sphinx_latesturl',
+    'pylons-sphinx-themes',
+    'sphinxcontrib-programoutput',
     ]
 
 testing_extras = tests_require + [
@@ -68,17 +72,19 @@ testing_extras = tests_require + [
     ]
 
 setup(name='pyramid',
-      version='1.5b1',
+      version='1.7.dev0',
       description='The Pyramid Web Framework, a Pylons project',
       long_description=README + '\n\n' +  CHANGES,
       classifiers=[
+        "Development Status :: 6 - Mature",
         "Intended Audience :: Developers",
         "Programming Language :: Python",
         "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.2",
         "Programming Language :: Python :: 3.3",
+        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
         "Framework :: Pyramid",
@@ -89,7 +95,7 @@ setup(name='pyramid',
       keywords='web wsgi pylons pyramid',
       author="Chris McDonough, Agendaless Consulting",
       author_email="pylons-discuss@googlegroups.com",
-      url="http://pylonsproject.org",
+      url="http://docs.pylonsproject.org/en/latest/docs/pyramid.html",
       license="BSD-derived (http://www.repoze.org/LICENSE.txt)",
       packages=find_packages(),
       include_package_data=True,
@@ -106,6 +112,8 @@ setup(name='pyramid',
         starter=pyramid.scaffolds:StarterProjectTemplate
         zodb=pyramid.scaffolds:ZODBProjectTemplate
         alchemy=pyramid.scaffolds:AlchemyProjectTemplate
+        [pyramid.pshell_runner]
+        python=pyramid.scripts.pshell:python_shell_runner
         [console_scripts]
         pcreate = pyramid.scripts.pcreate:main
         pserve = pyramid.scripts.pserve:main

@@ -96,19 +96,17 @@ class URLMethodsMixin(object):
             if scheme == 'http':
                 if port is None:
                     port = '80'
-        url = scheme + '://'
-        if port is not None:
-            port = str(port)
         if host is None:
             host = e.get('HTTP_HOST')
-        if host is None:
-            host = e['SERVER_NAME']
+            if host is None:
+                host = e['SERVER_NAME']
         if port is None:
             if ':' in host:
                 host, port = host.split(':', 1)
             else:
                 port = e['SERVER_PORT']
         else:
+            port = str(port)
             if ':' in host:
                 host, _ = host.split(':', 1)
         if scheme == 'https':
@@ -117,7 +115,7 @@ class URLMethodsMixin(object):
         elif scheme == 'http':
             if port == '80':
                 port = None
-        url += host
+        url = scheme + '://' + host
         if port:
             url += ':%s' % port
 
@@ -223,7 +221,7 @@ class URLMethodsMixin(object):
         named portion in the generated URL.  For example, if you pass
         ``_host='foo.com'``, and the URL that would have been generated
         without the host replacement is ``http://example.com/a``, the result
-        will be ``https://foo.com/a``.
+        will be ``http://foo.com/a``.
         
         Note that if ``_scheme`` is passed as ``https``, and ``_port`` is not
         passed, the ``_port`` value is assumed to have been passed as
@@ -414,7 +412,7 @@ class URLMethodsMixin(object):
         portion in the generated URL.  For example, if you pass
         ``host='foo.com'``, and the URL that would have been generated
         without the host replacement is ``http://example.com/a``, the result
-        will be ``https://foo.com/a``.
+        will be ``http://foo.com/a``.
         
         If ``scheme`` is passed as ``https``, and an explicit ``port`` is not
         passed, the ``port`` value is assumed to have been passed as ``443``.
@@ -606,10 +604,11 @@ class URLMethodsMixin(object):
             if local_url is not None:
                 # the resource handles its own url generation
                 d = dict(
-                    virtual_path = virtual_path,
-                    physical_path = url_adapter.physical_path,
-                    app_url = app_url,
-                    )
+                    virtual_path=virtual_path,
+                    physical_path=url_adapter.physical_path,
+                    app_url=app_url,
+                )
+
                 # allow __resource_url__ to punt by returning None
                 resource_url = local_url(self, d)
 
@@ -698,7 +697,7 @@ class URLMethodsMixin(object):
 
         """
         if not os.path.isabs(path):
-            if not ':' in path:
+            if ':' not in path:
                 # if it's not a package:relative/name and it's not an
                 # /absolute/path it's a relative/path; this means its relative
                 # to the package in which the caller's module is defined.
@@ -743,7 +742,7 @@ class URLMethodsMixin(object):
            to ``static_path`` will be ignored.
         """
         if not os.path.isabs(path):
-            if not ':' in path:
+            if ':' not in path:
                 # if it's not a package:relative/name and it's not an
                 # /absolute/path it's a relative/path; this means its relative
                 # to the package in which the caller's module is defined.
@@ -884,6 +883,7 @@ def resource_url(resource, request, *elements, **kw):
 
 model_url = resource_url # b/w compat (forever)
 
+
 def static_url(path, request, **kw):
     """
     This is a backwards compatibility function.  Its result is the same as
@@ -894,13 +894,14 @@ def static_url(path, request, **kw):
     See :meth:`pyramid.request.Request.static_url` for more information.
     """
     if not os.path.isabs(path):
-        if not ':' in path:
+        if ':' not in path:
             # if it's not a package:relative/name and it's not an
             # /absolute/path it's a relative/path; this means its relative
             # to the package in which the caller's module is defined.
             package = caller_package()
             path = '%s:%s' % (package.__name__, path)
     return request.static_url(path, **kw)
+
 
 def static_path(path, request, **kw):
     """
@@ -912,7 +913,7 @@ def static_path(path, request, **kw):
     See :meth:`pyramid.request.Request.static_path` for more information.
     """
     if not os.path.isabs(path):
-        if not ':' in path:
+        if ':' not in path:
             # if it's not a package:relative/name and it's not an
             # /absolute/path it's a relative/path; this means its relative
             # to the package in which the caller's module is defined.

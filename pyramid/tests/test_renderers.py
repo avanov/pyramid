@@ -182,7 +182,10 @@ class TestRendererHelper(unittest.TestCase):
         from pyramid.interfaces import IResponseFactory
         class ResponseFactory(object):
             pass
-        self.config.registry.registerUtility(ResponseFactory, IResponseFactory)
+
+        self.config.registry.registerUtility(
+            lambda r: ResponseFactory(), IResponseFactory
+        )
 
     def test_render_to_response(self):
         self._registerRendererFactory()
@@ -191,8 +194,8 @@ class TestRendererHelper(unittest.TestCase):
         helper = self._makeOne('loo.foo')
         response = helper.render_to_response('values', {},
                                              request=request)
-        self.assertEqual(response.body[0], 'values')
-        self.assertEqual(response.body[1], {})
+        self.assertEqual(response.app_iter[0], 'values')
+        self.assertEqual(response.app_iter[1], {})
 
     def test_get_renderer(self):
         factory = self._registerRendererFactory()
@@ -209,8 +212,8 @@ class TestRendererHelper(unittest.TestCase):
         request = testing.DummyRequest()
         response = 'response'
         response = helper.render_view(request, response, view, context)
-        self.assertEqual(response.body[0], 'response')
-        self.assertEqual(response.body[1],
+        self.assertEqual(response.app_iter[0], 'response')
+        self.assertEqual(response.app_iter[1],
                           {'renderer_info': helper,
                            'renderer_name': 'loo.foo',
                            'request': request,
@@ -287,6 +290,23 @@ class TestRendererHelper(unittest.TestCase):
         response = helper._make_response(la.encode('utf-8'), request)
         self.assertEqual(response.body, la.encode('utf-8'))
 
+    def test__make_response_result_is_iterable(self):
+        from pyramid.response import Response
+        request = testing.DummyRequest()
+        request.response = Response()
+        helper = self._makeOne('loo.foo')
+        la = text_('/La Pe\xc3\xb1a', 'utf-8')
+        response = helper._make_response([la.encode('utf-8')], request)
+        self.assertEqual(response.body, la.encode('utf-8'))
+
+    def test__make_response_result_is_other(self):
+        self._registerResponseFactory()
+        request = None
+        helper = self._makeOne('loo.foo')
+        result = object()
+        response = helper._make_response(result, request)
+        self.assertEqual(response.body, result)
+
     def test__make_response_result_is_None_no_body(self):
         from pyramid.response import Response
         request = testing.DummyRequest()
@@ -310,7 +330,9 @@ class TestRendererHelper(unittest.TestCase):
         class ResponseFactory(object):
             def __init__(self):
                 pass
-        self.config.registry.registerUtility(ResponseFactory, IResponseFactory)
+        self.config.registry.registerUtility(
+            lambda r: ResponseFactory(), IResponseFactory
+        )
         request = testing.DummyRequest()
         helper = self._makeOne('loo.foo')
         response = helper._make_response(b'abc', request)
@@ -495,10 +517,11 @@ class Test_render_to_response(unittest.TestCase):
     def tearDown(self):
         testing.tearDown()
 
-    def _callFUT(self, renderer_name, value, request=None, package=None):
+    def _callFUT(self, renderer_name, value, request=None, package=None,
+                 response=None):
         from pyramid.renderers import render_to_response
         return render_to_response(renderer_name, value, request=request,
-                                  package=package)
+                                  package=package, response=response)
 
     def test_it_no_request(self):
         renderer = self.config.testing_add_renderer(
@@ -531,6 +554,85 @@ class Test_render_to_response(unittest.TestCase):
         self.assertEqual(response.body, b'abc')
         renderer.assert_(a=1)
         renderer.assert_(request=request)
+
+    def test_response_preserved(self):
+        request = testing.DummyRequest()
+        response = object() # should error if mutated
+        request.response = response
+        # use a json renderer, which will mutate the response
+        result = self._callFUT('json', dict(a=1), request=request)
+        self.assertEqual(result.body, b'{"a": 1}')
+        self.assertNotEqual(request.response, result)
+        self.assertEqual(request.response, response)
+
+    def test_no_response_to_preserve(self):
+        from pyramid.decorator import reify
+        class DummyRequestWithClassResponse(object):
+            _response = DummyResponse()
+            _response.content_type = None
+            _response.default_content_type = None
+            @reify
+            def response(self):
+                return self._response
+        request = DummyRequestWithClassResponse()
+        # use a json renderer, which will mutate the response
+        result = self._callFUT('json', dict(a=1), request=request)
+        self.assertEqual(result.body, b'{"a": 1}')
+        self.assertFalse('response' in request.__dict__)
+
+    def test_custom_response_object(self):
+        class DummyRequestWithClassResponse(object):
+            pass
+        request = DummyRequestWithClassResponse()
+        response = DummyResponse()
+        # use a json renderer, which will mutate the response
+        result = self._callFUT('json', dict(a=1), request=request,
+                               response=response)
+        self.assertTrue(result is response)
+        self.assertEqual(result.body, b'{"a": 1}')
+        self.assertFalse('response' in request.__dict__)
+
+class Test_temporary_response(unittest.TestCase):
+    def _callFUT(self, request):
+        from pyramid.renderers import temporary_response
+        return temporary_response(request)
+
+    def test_restores_response(self):
+        request = testing.DummyRequest()
+        orig_response = request.response
+        with self._callFUT(request):
+            request.response = object()
+        self.assertEqual(request.response, orig_response)
+
+    def test_restores_response_on_exception(self):
+        request = testing.DummyRequest()
+        orig_response = request.response
+        try:
+            with self._callFUT(request):
+                request.response = object()
+                raise RuntimeError()
+        except RuntimeError:
+            self.assertEqual(request.response, orig_response)
+        else:                   # pragma: no cover
+            self.fail("RuntimeError not raised")
+
+    def test_restores_response_to_none(self):
+        request = testing.DummyRequest(response=None)
+        with self._callFUT(request):
+            request.response = object()
+        self.assertEqual(request.response, None)
+
+    def test_deletes_response(self):
+        request = testing.DummyRequest()
+        with self._callFUT(request):
+            request.response = object()
+        self.assertTrue('response' not in request.__dict__)
+
+    def test_does_not_delete_response_if_no_response_to_delete(self):
+        request = testing.DummyRequest()
+        with self._callFUT(request):
+            pass
+        self.assertTrue('response' not in request.__dict__)
 
 class Test_get_renderer(unittest.TestCase):
     def setUp(self):
@@ -567,7 +669,17 @@ class TestJSONP(unittest.TestCase):
         request = testing.DummyRequest()
         request.GET['callback'] = 'callback'
         result = renderer({'a':'1'}, {'request':request})
-        self.assertEqual(result, 'callback({"a": "1"});')
+        self.assertEqual(result, '/**/callback({"a": "1"});')
+        self.assertEqual(request.response.content_type,
+                         'application/javascript')
+
+    def test_render_to_jsonp_with_dot(self):
+        renderer_factory = self._makeOne()
+        renderer = renderer_factory(None)
+        request = testing.DummyRequest()
+        request.GET['callback'] = 'angular.callbacks._0'
+        result = renderer({'a':'1'}, {'request':request})
+        self.assertEqual(result, '/**/angular.callbacks._0({"a": "1"});')
         self.assertEqual(request.response.content_type,
                          'application/javascript')
 
@@ -580,13 +692,34 @@ class TestJSONP(unittest.TestCase):
         self.assertEqual(request.response.content_type,
                          'application/json')
 
+    def test_render_without_request(self):
+        renderer_factory = self._makeOne()
+        renderer = renderer_factory(None)
+        result = renderer({'a':'1'}, {})
+        self.assertEqual(result, '{"a": "1"}')
+
+    def test_render_to_jsonp_invalid_callback(self):
+        from pyramid.httpexceptions import HTTPBadRequest
+        renderer_factory = self._makeOne()
+        renderer = renderer_factory(None)
+        request = testing.DummyRequest()
+        request.GET['callback'] = '78mycallback'
+        self.assertRaises(HTTPBadRequest, renderer, {'a':'1'}, {'request':request})
+
 
 class Dummy:
     pass
 
 class DummyResponse:
     status = '200 OK'
+    default_content_type = 'text/html'
+    content_type = default_content_type
     headerlist = ()
     app_iter = ()
-    body = ''
+    body = b''
+
+    # compat for renderer that will set unicode on py3
+    def _set_text(self, val): # pragma: no cover
+        self.body = val.encode('utf8')
+    text = property(fset=_set_text)
 

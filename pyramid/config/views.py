@@ -1,4 +1,5 @@
 import inspect
+import posixpath
 import operator
 import os
 import warnings
@@ -20,6 +21,7 @@ from pyramid.interfaces import (
     IException,
     IExceptionViewClassifier,
     IMultiView,
+    IPackageOverrides,
     IRendererFactory,
     IRequest,
     IResponse,
@@ -35,19 +37,16 @@ from pyramid.interfaces import (
 
 from pyramid import renderers
 
+from pyramid.asset import resolve_asset_spec
 from pyramid.compat import (
     string_types,
     urlparse,
     url_quote,
     WIN,
     is_bound_method,
-    is_nonstr_iter
+    is_unbound_method,
+    is_nonstr_iter,
     )
-
-from pyramid.encode import (
-    quote_plus,
-    urlencode,
-)
 
 from pyramid.exceptions import (
     ConfigurationError,
@@ -57,6 +56,7 @@ from pyramid.exceptions import (
 from pyramid.httpexceptions import (
     HTTPForbidden,
     HTTPNotFound,
+    default_exceptionresponse_view,
     )
 
 from pyramid.registry import (
@@ -68,7 +68,6 @@ from pyramid.response import Response
 
 from pyramid.security import NO_PERMISSION_REQUIRED
 from pyramid.static import static_view
-from pyramid.threadlocal import get_current_registry
 
 from pyramid.url import parse_url_overrides
 
@@ -159,7 +158,7 @@ class ViewDeriver(object):
                                 self.decorated_view(
                                     self.rendered_view(
                                         self.mapped_view(
-                                                view)))))))))
+                                            view)))))))))
 
     @wraps_view
     def mapped_view(self, view):
@@ -234,7 +233,11 @@ class ViewDeriver(object):
             permission = None
 
         wrapped_view = view
-        if self.authn_policy and self.authz_policy and (permission is not None):
+        if (
+                self.authn_policy and
+                self.authz_policy and
+                (permission is not None)
+        ):
             def _permitted(context, request):
                 principals = self.authn_policy.effective_principals(request)
                 return self.authz_policy.permits(context, principals,
@@ -272,7 +275,8 @@ class ViewDeriver(object):
                     else:
                         principals = self.authn_policy.effective_principals(
                             request)
-                        msg = str(self.authz_policy.permits(context, principals,
+                        msg = str(self.authz_policy.permits(context,
+                                                            principals,
                                                             permission))
                 else:
                     msg = 'Allowed (no authorization policy in use)'
@@ -295,14 +299,16 @@ class ViewDeriver(object):
         preds = self.kw.get('predicates', ())
         if not preds:
             return view
+
         def predicate_wrapper(context, request):
             for predicate in preds:
                 if not predicate(context, request):
                     view_name = getattr(view, '__name__', view)
                     raise PredicateMismatch(
-                         'predicate mismatch for view %s (%s)' % (
-                         view_name, predicate.text()))
-            return view(context, request)        
+                        'predicate mismatch for view %s (%s)' % (
+                            view_name, predicate.text()))
+            return view(context, request)
+
         def checker(context, request):
             return all((predicate(context, request) for predicate in
                         preds))
@@ -323,7 +329,7 @@ class ViewDeriver(object):
             (accept is None) and
             (order == MAX_ORDER) and
             (phash == DEFAULT_PHASH)
-            ):
+        ):
             return view # defaults
         def attr_view(context, request):
             return view(context, request)
@@ -351,9 +357,8 @@ class ViewDeriver(object):
 
     def _rendered_view(self, view, view_renderer):
         def rendered_view(context, request):
-            renderer = view_renderer
             result = view(context, request)
-            if result.__class__ is Response: # potential common case
+            if result.__class__ is Response:  # potential common case
                 response = result
             else:
                 registry = self.registry
@@ -368,7 +373,10 @@ class ViewDeriver(object):
                         renderer = renderers.RendererHelper(
                             name=renderer_name,
                             package=self.kw.get('package'),
-                            registry = registry)
+                            registry=registry)
+                    else:
+                        renderer = view_renderer.clone()
+
                     if '__view__' in attrs:
                         view_inst = attrs.pop('__view__')
                     else:
@@ -381,9 +389,10 @@ class ViewDeriver(object):
 
     def _response_resolved_view(self, view):
         registry = self.registry
+
         def viewresult_to_response(context, request):
             result = view(context, request)
-            if result.__class__ is Response: # common case
+            if result.__class__ is Response:  # common case
                 response = result
             else:
                 response = registry.queryAdapterOrSelf(result, IResponse)
@@ -414,6 +423,7 @@ class ViewDeriver(object):
             return view
         return decorator(view)
 
+
 @implementer(IViewMapper)
 @provider(IViewMapperFactory)
 class DefaultViewMapper(object):
@@ -421,6 +431,12 @@ class DefaultViewMapper(object):
         self.attr = kw.get('attr')
 
     def __call__(self, view):
+        if is_unbound_method(view) and self.attr is None:
+            raise ConfigurationError((
+                'Unbound method calls are not supported, please set the class '
+                'as your `view` and the method as your `attr`'
+            ))
+
         if inspect.isclass(view):
             view = self.map_class(view)
         else:
@@ -626,7 +642,8 @@ class ViewsConfiguratorMixin(object):
         http_cache=None,
         match_param=None,
         check_csrf=None,
-        **predicates):
+        **predicates
+    ):
         """ Add a :term:`view configuration` to the current
         configuration state.  Arguments to ``add_view`` are broken
         down below into *predicate* arguments and *non-predicate*
@@ -832,6 +849,22 @@ class ViewsConfiguratorMixin(object):
           think about preserving function attributes such as ``__name__`` and
           ``__module__`` within decorator logic).
 
+          All view callables in the decorator chain must return a response
+          object implementing :class:`pyramid.interfaces.IResponse` or raise
+          an exception:
+
+          .. code-block:: python
+
+             def log_timer(wrapped):
+                 def wrapper(context, request):
+                     start = time.time()
+                     response = wrapped(context, request)
+                     duration = time.time() - start
+                     response.headers['X-View-Time'] = '%.3f' % (duration,)
+                     log.info('view took %.3f seconds', duration)
+                     return response
+                 return wrapper
+
           .. versionchanged:: 1.4a4
              Passing an iterable.
 
@@ -843,6 +876,18 @@ class ViewsConfiguratorMixin(object):
           plug-point is useful for Pyramid extension developers, but it's not
           very useful for 'civilians' who are just developing stock Pyramid
           applications. Pay no attention to the man behind the curtain.
+
+        accept
+
+          This value represents a match query for one or more mimetypes in the
+          ``Accept`` HTTP request header.  If this value is specified, it must
+          be in one of the following forms: a mimetype match token in the form
+          ``text/plain``, a wildcard mimetype match token in the form
+          ``text/*`` or a match-all wildcard mimetype match token in the form
+          ``*/*``.  If any of the forms matches the ``Accept`` header of the
+          request, or if the ``Accept`` header isn't set at all in the request,
+          this will match the current view. If this does not match the
+          ``Accept`` header of the request, view matching continues.
 
         Predicate Arguments
 
@@ -879,11 +924,11 @@ class ViewsConfiguratorMixin(object):
 
         request_method
 
-          This value can be either a strings (such as ``GET``, ``POST``,
-          ``PUT``, ``DELETE``, or ``HEAD``) representing an HTTP
-          ``REQUEST_METHOD``, or a tuple containing one or more of these
-          strings.  A view declaration with this argument ensures that the
-          view will only be called when the ``method`` attribute of the
+          This value can be either a string (such as ``"GET"``, ``"POST"``,
+          ``"PUT"``, ``"DELETE"``, ``"HEAD"`` or ``"OPTIONS"``) representing
+          an HTTP ``REQUEST_METHOD``, or a tuple containing one or more of
+          these strings.  A view declaration with this argument ensures that
+          the view will only be called when the ``method`` attribute of the
           request (aka the ``REQUEST_METHOD`` of the WSGI environment) matches
           a supplied value.  Note that use of ``GET`` also implies that the
           view will respond to ``HEAD`` as of Pyramid 1.4.
@@ -894,8 +939,8 @@ class ViewsConfiguratorMixin(object):
 
         request_param
 
-          This value can be any string or any sequence of strings.  A view 
-          declaration with this argument ensures that the view will only be 
+          This value can be any string or any sequence of strings.  A view
+          declaration with this argument ensures that the view will only be
           called when the :term:`request` has a key in the ``request.params``
           dictionary (an HTTP ``GET`` or ``POST`` variable) that has a
           name which matches the supplied value (if the value is a string)
@@ -944,17 +989,6 @@ class ViewsConfiguratorMixin(object):
           This is useful for detecting AJAX requests issued from
           jQuery, Prototype and other Javascript libraries.
 
-        accept
-
-          The value of this argument represents a match query for one
-          or more mimetypes in the ``Accept`` HTTP request header.  If
-          this value is specified, it must be in one of the following
-          forms: a mimetype match token in the form ``text/plain``, a
-          wildcard mimetype match token in the form ``text/*`` or a
-          match-all wildcard mimetype match token in the form ``*/*``.
-          If any of the forms matches the ``Accept`` header of the
-          request, this predicate will be true.
-
         header
 
           This value represents an HTTP header name or a header
@@ -1001,7 +1035,7 @@ class ViewsConfiguratorMixin(object):
 
           Note that using this feature requires a :term:`session factory` to
           have been configured.
-         
+
           .. versionadded:: 1.4a2
 
         physical_path
@@ -1039,7 +1073,7 @@ class ViewsConfiguratorMixin(object):
                 This value should be a sequence of references to custom
                 predicate callables.  Use custom predicates when no set of
                 predefined predicates do what you need.  Custom predicates
-                can be combined with predefined predicates as necessary. 
+                can be combined with predefined predicates as necessary.
                 Each custom predicate callable should accept two arguments:
                 ``context`` and ``request`` and should return either
                 ``True`` or ``False`` after doing arbitrary evaluation of
@@ -1074,7 +1108,7 @@ class ViewsConfiguratorMixin(object):
                 DeprecationWarning,
                 stacklevel=4
                 )
-        
+
         view = self.maybe_dotted(view)
         context = self.maybe_dotted(context)
         for_ = self.maybe_dotted(for_)
@@ -1120,7 +1154,7 @@ class ViewsConfiguratorMixin(object):
         if isinstance(renderer, string_types):
             renderer = renderers.RendererHelper(
                 name=renderer, package=self.package,
-                registry = self.registry)
+                registry=self.registry)
 
         if accept is not None:
             accept = accept.lower()
@@ -1148,7 +1182,11 @@ class ViewsConfiguratorMixin(object):
             # is.  It can't be computed any sooner because thirdparty
             # predicates may not yet exist when add_view is called.
             order, preds, phash = predlist.make(self, **pvals)
-            view_intr.update({'phash':phash, 'order':order, 'predicates':preds})
+            view_intr.update({
+                'phash': phash,
+                'order': order,
+                'predicates': preds
+            })
             return ('view', context, name, route_name, phash)
 
         discriminator = Deferred(discrim_func)
@@ -1160,7 +1198,7 @@ class ViewsConfiguratorMixin(object):
             view_desc = self.object_description(view)
 
         tmpl_intr = None
-            
+
         view_intr = self.introspectable('views',
                                         discriminator,
                                         view_desc,
@@ -1189,10 +1227,6 @@ class ViewsConfiguratorMixin(object):
         predlist = self.get_predlist('view')
 
         def register(permission=permission, renderer=renderer):
-            # the discrim_func above is guaranteed to have been called already
-            order = view_intr['order']
-            preds = view_intr['predicates']
-            phash = view_intr['phash']
             request_iface = IRequest
             if route_name is not None:
                 request_iface = self.registry.queryUtility(IRouteRequest,
@@ -1342,6 +1376,8 @@ class ViewsConfiguratorMixin(object):
                         multiview,
                         (IExceptionViewClassifier, request_iface, context),
                         IMultiView, name=name)
+
+            self.registry._clear_view_lookup_cache()
             renderer_type = getattr(renderer, 'type', None) # gard against None
             intrspc = self.introspector
             if (
@@ -1349,7 +1385,7 @@ class ViewsConfiguratorMixin(object):
                 tmpl_intr is not None and
                 intrspc is not None and
                 intrspc.get('renderer factories', renderer_type) is not None
-                ):
+            ):
                 # allow failure of registered template factories to be deferred
                 # until view execution, like other bad renderer factories; if
                 # we tried to relate this to an existing renderer factory
@@ -1391,7 +1427,7 @@ class ViewsConfiguratorMixin(object):
                 permission,
                 permission,
                 'permission'
-                )
+            )
             perm_intr['value'] = permission
             perm_intr.relate('views', discriminator)
             introspectables.append(perm_intr)
@@ -1423,7 +1459,7 @@ class ViewsConfiguratorMixin(object):
             factory,
             weighs_more_than=weighs_more_than,
             weighs_less_than=weighs_less_than
-            )
+        )
 
     def add_default_view_predicates(self):
         p = pyramid.config.predicates
@@ -1441,7 +1477,7 @@ class ViewsConfiguratorMixin(object):
             ('physical_path', p.PhysicalPathPredicate),
             ('effective_principals', p.EffectivePrincipalsPredicate),
             ('custom', p.CustomPredicate),
-            ):
+        ):
             self.add_view_predicate(name, factory)
 
     def derive_view(self, view, attr=None, renderer=None):
@@ -1533,7 +1569,7 @@ class ViewsConfiguratorMixin(object):
         if isinstance(renderer, string_types):
             renderer = renderers.RendererHelper(
                 name=renderer, package=self.package,
-                registry = self.registry)
+                registry=self.registry)
         if renderer is None:
             # use default renderer if one exists
             if self.registry.queryUtility(IRendererFactory) is not None:
@@ -1569,7 +1605,7 @@ class ViewsConfiguratorMixin(object):
         wrapper=None,
         route_name=None,
         request_type=None,
-        request_method=None, 
+        request_method=None,
         request_param=None,
         containment=None,
         xhr=None,
@@ -1581,7 +1617,7 @@ class ViewsConfiguratorMixin(object):
         mapper=None,
         match_param=None,
         **predicates
-        ):
+    ):
         """ Add a forbidden view to the current configuration state.  The
         view will be called when Pyramid or application code raises a
         :exc:`pyramid.httpexceptions.HTTPForbidden` exception and the set of
@@ -1595,9 +1631,12 @@ class ViewsConfiguratorMixin(object):
 
             config.add_forbidden_view(forbidden)
 
+        If ``view`` argument is not provided, the view callable defaults to
+        :func:`~pyramid.httpexceptions.default_exceptionresponse_view`.
+
         All arguments have the same meaning as
         :meth:`pyramid.config.Configurator.add_view` and each predicate
-        argument restricts the set of circumstances under which this notfound
+        argument restricts the set of circumstances under which this forbidden
         view will be invoked.  Unlike
         :meth:`pyramid.config.Configurator.add_view`, this method will raise
         an exception if passed ``name``, ``permission``, ``context``,
@@ -1611,8 +1650,11 @@ class ViewsConfiguratorMixin(object):
                 raise ConfigurationError(
                     '%s may not be used as an argument to add_forbidden_view'
                     % arg
-                    )
-        
+                )
+
+        if view is None:
+            view = default_exceptionresponse_view
+
         settings = dict(
             view=view,
             context=HTTPForbidden,
@@ -1623,7 +1665,7 @@ class ViewsConfiguratorMixin(object):
             containment=containment,
             xhr=xhr,
             accept=accept,
-            header=header, 
+            header=header,
             path_info=path_info,
             custom_predicates=custom_predicates,
             decorator=decorator,
@@ -1633,12 +1675,12 @@ class ViewsConfiguratorMixin(object):
             permission=NO_PERMISSION_REQUIRED,
             attr=attr,
             renderer=renderer,
-            )
+        )
         settings.update(predicates)
         return self.add_view(**settings)
 
     set_forbidden_view = add_forbidden_view # deprecated sorta-bw-compat alias
-    
+
     @viewdefaults
     @action_method
     def add_notfound_view(
@@ -1649,7 +1691,7 @@ class ViewsConfiguratorMixin(object):
         wrapper=None,
         route_name=None,
         request_type=None,
-        request_method=None, 
+        request_method=None,
         request_param=None,
         containment=None,
         xhr=None,
@@ -1662,7 +1704,7 @@ class ViewsConfiguratorMixin(object):
         match_param=None,
         append_slash=False,
         **predicates
-        ):
+    ):
         """ Add a default Not Found View to the current configuration state.
         The view will be called when Pyramid or application code raises an
         :exc:`pyramid.httpexceptions.HTTPNotFound` exception (e.g. when a
@@ -1674,6 +1716,9 @@ class ViewsConfiguratorMixin(object):
                 return Response('Not Found', status='404 Not Found')
 
             config.add_notfound_view(notfound)
+
+        If ``view`` argument is not provided, the view callable defaults to
+        :func:`~pyramid.httpexceptions.default_exceptionresponse_view`.
 
         All arguments except ``append_slash`` have the same meaning as
         :meth:`pyramid.config.Configurator.add_view` and each predicate
@@ -1692,6 +1737,24 @@ class ViewsConfiguratorMixin(object):
         Pyramid will return the result of the view callable provided as
         ``view``, as normal.
 
+        If the argument provided as ``append_slash`` is not a boolean but
+        instead implements :class:`~pyramid.interfaces.IResponse`, the
+        append_slash logic will behave as if ``append_slash=True`` was passed,
+        but the provided class will be used as the response class instead of
+        the default :class:`~pyramid.httpexceptions.HTTPFound` response class
+        when a redirect is performed.  For example:
+
+          .. code-block:: python
+
+            from pyramid.httpexceptions import HTTPMovedPermanently
+            config.add_notfound_view(append_slash=HTTPMovedPermanently)
+
+        The above means that a redirect to a slash-appended route will be
+        attempted, but instead of :class:`~pyramid.httpexceptions.HTTPFound`
+        being used, :class:`~pyramid.httpexceptions.HTTPMovedPermanently will
+        be used` for the redirect response if a slash-appended route is found.
+
+        .. versionchanged:: 1.6
         .. versionadded:: 1.3
         """
         for arg in ('name', 'permission', 'context', 'for_', 'http_cache'):
@@ -1699,8 +1762,11 @@ class ViewsConfiguratorMixin(object):
                 raise ConfigurationError(
                     '%s may not be used as an argument to add_notfound_view'
                     % arg
-                    )
-                    
+                )
+
+        if view is None:
+            view = default_exceptionresponse_view
+
         settings = dict(
             view=view,
             context=HTTPNotFound,
@@ -1711,7 +1777,7 @@ class ViewsConfiguratorMixin(object):
             containment=containment,
             xhr=xhr,
             accept=accept,
-            header=header, 
+            header=header,
             path_info=path_info,
             custom_predicates=custom_predicates,
             decorator=decorator,
@@ -1719,11 +1785,16 @@ class ViewsConfiguratorMixin(object):
             match_param=match_param,
             route_name=route_name,
             permission=NO_PERMISSION_REQUIRED,
-            )
+        )
         settings.update(predicates)
         if append_slash:
             view = self._derive_view(view, attr=attr, renderer=renderer)
-            view = AppendSlashNotFoundViewFactory(view)
+            if IResponse.implementedBy(append_slash):
+                view = AppendSlashNotFoundViewFactory(
+                    view, redirect_class=append_slash,
+                )
+            else:
+                view = AppendSlashNotFoundViewFactory(view)
             settings['view'] = view
         else:
             settings['attr'] = attr
@@ -1740,7 +1811,7 @@ class ViewsConfiguratorMixin(object):
         signatures than the ones supported by :app:`Pyramid` as described in
         its narrative documentation.
 
-        The ``mapper`` should argument be an object implementing
+        The ``mapper`` argument should be an object implementing
         :class:`pyramid.interfaces.IViewMapperFactory` or a :term:`dotted
         Python name` to such an object.  The provided ``mapper`` will become
         the default view mapper to be used by all subsequent :term:`view
@@ -1866,11 +1937,41 @@ class ViewsConfiguratorMixin(object):
         See :ref:`static_assets_section` for more information.
         """
         spec = self._make_spec(path)
+        info = self._get_static_info()
+        info.add(self, name, spec, **kw)
+
+    def add_cache_buster(self, path, cachebust, explicit=False):
+        """
+        Add a cache buster to a set of files on disk.
+
+        The ``path`` should be the path on disk where the static files
+        reside.  This can be an absolute path, a package-relative path, or a
+        :term:`asset specification`.
+
+        The ``cachebust`` argument may be set to cause
+        :meth:`~pyramid.request.Request.static_url` to use cache busting when
+        generating URLs. See :ref:`cache_busting` for general information
+        about cache busting. The value of the ``cachebust`` argument must
+        be an object which implements
+        :class:`~pyramid.interfaces.ICacheBuster`.
+
+        If ``explicit`` is set to ``True`` then the ``path`` for the cache
+        buster will be matched based on the ``rawspec`` instead of the
+        ``pathspec`` as defined in the
+        :class:`~pyramid.interfaces.ICacheBuster` interface.
+        Default: ``False``.
+
+        """
+        spec = self._make_spec(path)
+        info = self._get_static_info()
+        info.add_cache_buster(self, spec, cachebust, explicit=explicit)
+
+    def _get_static_info(self):
         info = self.registry.queryUtility(IStaticURLInfo)
         if info is None:
             info = StaticURLInfo()
             self.registry.registerUtility(info, IStaticURLInfo)
-        info.add(self, name, spec, **kw)
+        return info
 
 def isexception(o):
     if IInterface.providedBy(o):
@@ -1879,29 +1980,24 @@ def isexception(o):
     return (
         isinstance(o, Exception) or
         (inspect.isclass(o) and (issubclass(o, Exception)))
-        )
+    )
 
 
 @implementer(IStaticURLInfo)
 class StaticURLInfo(object):
-
-    def _get_registrations(self, registry):
-        try:
-            reg = registry._static_url_registrations
-        except AttributeError:
-            reg = registry._static_url_registrations = []
-        return reg
+    def __init__(self):
+        self.registrations = []
+        self.cache_busters = []
 
     def generate(self, path, request, **kw):
-        try:
-            registry = request.registry
-        except AttributeError: # bw compat (for tests)
-            registry = get_current_registry()
-        for (url, spec, route_name) in self._get_registrations(registry):
+        for (url, spec, route_name) in self.registrations:
             if path.startswith(spec):
                 subpath = path[len(spec):]
                 if WIN: # pragma: no cover
                     subpath = subpath.replace('\\', '/') # windows
+                if self.cache_busters:
+                    subpath, kw = self._bust_asset_path(
+                        request, spec, subpath, kw)
                 if url is None:
                     kw['subpath'] = subpath
                     return request.route_url(route_name, **kw)
@@ -1928,7 +2024,7 @@ class StaticURLInfo(object):
             sep = os.sep
         else:
             sep = '/'
-        if not spec.endswith(sep):
+        if not spec.endswith(sep) and not spec.endswith(':'):
             spec = spec + sep
 
         # we also make sure the name ends with a slash, purely as a
@@ -1950,6 +2046,7 @@ class StaticURLInfo(object):
             # it's a view name
             url = None
             cache_max_age = extra.pop('cache_max_age', None)
+
             # create a view
             view = static_view(spec, cache_max_age=cache_max_age,
                                use_subpath=True)
@@ -1969,7 +2066,7 @@ class StaticURLInfo(object):
 
             # register a route using the computed view, permission, and
             # pattern, plus any extras passed to us via add_static_view
-            pattern = "%s*subpath" % name # name already ends with slash
+            pattern = "%s*subpath" % name  # name already ends with slash
             if config.route_prefix:
                 route_name = '__%s/%s' % (config.route_prefix, name)
             else:
@@ -1981,12 +2078,12 @@ class StaticURLInfo(object):
                 permission=permission,
                 context=context,
                 renderer=renderer,
-                )
+            )
 
         def register():
-            registrations = self._get_registrations(config.registry)
+            registrations = self.registrations
 
-            names = [ t[0] for t in  registrations ]
+            names = [t[0] for t in registrations]
 
             if name in names:
                 idx = names.index(name)
@@ -2004,4 +2101,86 @@ class StaticURLInfo(object):
 
         config.action(None, callable=register, introspectables=(intr,))
 
+    def add_cache_buster(self, config, spec, cachebust, explicit=False):
+        # ensure the spec always has a trailing slash as we only support
+        # adding cache busters to folders, not files
+        if os.path.isabs(spec): # FBO windows
+            sep = os.sep
+        else:
+            sep = '/'
+        if not spec.endswith(sep) and not spec.endswith(':'):
+            spec = spec + sep
 
+        def register():
+            if config.registry.settings.get('pyramid.prevent_cachebust'):
+                return
+
+            cache_busters = self.cache_busters
+
+            # find duplicate cache buster (old_idx)
+            # and insertion location (new_idx)
+            new_idx, old_idx = len(cache_busters), None
+            for idx, (spec_, cb_, explicit_) in enumerate(cache_busters):
+                # if we find an identical (spec, explicit) then use it
+                if spec == spec_ and explicit == explicit_:
+                    old_idx = new_idx = idx
+                    break
+
+                # past all explicit==False specs then add to the end
+                elif not explicit and explicit_:
+                    new_idx = idx
+                    break
+
+                # explicit matches and spec is shorter
+                elif explicit == explicit_ and len(spec) < len(spec_):
+                    new_idx = idx
+                    break
+
+            if old_idx is not None:
+                cache_busters.pop(old_idx)
+
+            cache_busters.insert(new_idx, (spec, cachebust, explicit))
+
+        intr = config.introspectable('cache busters',
+                                     spec,
+                                     'cache buster for %r' % spec,
+                                     'cache buster')
+        intr['cachebust'] = cachebust
+        intr['path'] = spec
+        intr['explicit'] = explicit
+
+        config.action(None, callable=register, introspectables=(intr,))
+
+    def _bust_asset_path(self, request, spec, subpath, kw):
+        registry = request.registry
+        pkg_name, pkg_subpath = resolve_asset_spec(spec)
+        rawspec = None
+
+        if pkg_name is not None:
+            pathspec = '{0}:{1}{2}'.format(pkg_name, pkg_subpath, subpath)
+            overrides = registry.queryUtility(IPackageOverrides, name=pkg_name)
+            if overrides is not None:
+                resource_name = posixpath.join(pkg_subpath, subpath)
+                sources = overrides.filtered_sources(resource_name)
+                for source, filtered_path in sources:
+                    rawspec = source.get_path(filtered_path)
+                    if hasattr(source, 'pkg_name'):
+                        rawspec = '{0}:{1}'.format(source.pkg_name, rawspec)
+                    break
+
+        else:
+            pathspec = pkg_subpath + subpath
+
+        if rawspec is None:
+            rawspec = pathspec
+
+        kw['pathspec'] = pathspec
+        kw['rawspec'] = rawspec
+        for spec_, cachebust, explicit in reversed(self.cache_busters):
+            if (
+                (explicit and rawspec.startswith(spec_)) or
+                (not explicit and pathspec.startswith(spec_))
+            ):
+                subpath, kw = cachebust(request, subpath, kw)
+                break
+        return subpath, kw

@@ -138,6 +138,18 @@ class RoutesConfiguratorMixin(object):
 
           .. versionadded:: 1.1
 
+        accept
+
+          This value represents a match query for one or more mimetypes in the
+          ``Accept`` HTTP request header.  If this value is specified, it must
+          be in one of the following forms: a mimetype match token in the form
+          ``text/plain``, a wildcard mimetype match token in the form
+          ``text/*`` or a match-all wildcard mimetype match token in the form
+          ``*/*``.  If any of the forms matches the ``Accept`` header of the
+          request, or if the ``Accept`` header isn't set at all in the request,
+          this will match the current route. If this does not match the
+          ``Accept`` header of the request, route matching continues.
+
         Predicate Arguments
 
         pattern
@@ -220,19 +232,6 @@ class RoutesConfiguratorMixin(object):
           case of the header name is not significant.  If this
           predicate returns ``False``, route matching continues.
 
-        accept
-
-          This value represents a match query for one or more
-          mimetypes in the ``Accept`` HTTP request header.  If this
-          value is specified, it must be in one of the following
-          forms: a mimetype match token in the form ``text/plain``, a
-          wildcard mimetype match token in the form ``text/*`` or a
-          match-all wildcard mimetype match token in the form ``*/*``.
-          If any of the forms matches the ``Accept`` header of the
-          request, or if the ``Accept`` header isn't set at all in the
-          request, this predicate will be true. If this predicate
-          returns ``False``, route matching continues.
-
         effective_principals
 
           If specified, this value should be a :term:`principal` identifier or
@@ -269,7 +268,7 @@ class RoutesConfiguratorMixin(object):
 
           Pass a key/value pair here to use a third-party predicate
           registered via
-          :meth:`pyramid.config.Configurator.add_view_predicate`.  More than
+          :meth:`pyramid.config.Configurator.add_route_predicate`.  More than
           one key/value pair can be used at the same time.  See
           :ref:`view_and_route_predicates` for more information about
           third-party predicates.
@@ -303,6 +302,8 @@ class RoutesConfiguratorMixin(object):
         # check for an external route; an external route is one which is
         # is a full url (e.g. 'http://example.com/{id}')
         parsed = urlparse.urlparse(pattern)
+        external_url = pattern
+
         if parsed.hostname:
             pattern = parsed.path
 
@@ -357,6 +358,10 @@ class RoutesConfiguratorMixin(object):
         intr['pregenerator'] = pregenerator
         intr['static'] = static
         intr['use_global_views'] = use_global_views
+
+        if static is True:
+            intr['external_url'] = external_url
+
         introspectables.append(intr)
 
         if factory:
@@ -416,14 +421,14 @@ class RoutesConfiguratorMixin(object):
 
     @action_method
     def add_route_predicate(self, name, factory, weighs_more_than=None,
-                           weighs_less_than=None):
+                            weighs_less_than=None):
         """ Adds a route predicate factory.  The view predicate can later be
         named as a keyword argument to
         :meth:`pyramid.config.Configurator.add_route`.
 
         ``name`` should be the name of the predicate.  It must be a valid
         Python identifier (it will be used as a keyword argument to
-        ``add_view``).
+        ``add_route``).
 
         ``factory`` should be a :term:`predicate factory` or :term:`dotted
         Python name` which refers to a predicate factory.

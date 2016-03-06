@@ -230,3 +230,37 @@ Contributors
 - Antti Haapala, 2013/11/15
 
 - Amit Mane, 2014/01/23
+
+- Fenton Travers, 2014/05/06
+
+- Randall Leeds, 2014/11/11
+
+- Hugo Branquinho, 2014/11/25
+
+- Adrian Teng, 2014/12/17
+
+- Ilja Everila, 2015/02/05
+
+- Geoffrey T. Dairiki, 2015/02/06
+
+- David Glick, 2015/02/12
+
+- Donald Stufft, 2015/03/15
+
+- Randy Topliffe, 2015/04/14
+
+- Timur Izhbulatov, 2015/04/14
+
+- Karen Dalton, 2015/06/01
+
+- Igor Stroh, 2015/06/10
+
+- Jesse Dhillon, 2015/10/07
+
+- Amos Latteier, 2015/10/22
+
+- Rami Chousein, 2015/10/28
+
+- Sri Sanketh Uppalapati, 2015/12/12
+
+- Marcin Raczyński, 2016/01/26

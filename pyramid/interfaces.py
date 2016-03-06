@@ -5,7 +5,7 @@ from zope.interface import (
     Interface,
     )
 
-from pyramid.compat import PY3
+from pyramid.compat import PY2
 
 # public API interfaces
 
@@ -149,7 +149,7 @@ class IResponse(Interface):
         """Gets and sets and deletes the Content-MD5 header. For more
         information on Content-MD5 see RFC 2616 section 14.14.""")
 
-    content_range  = Attribute(
+    content_range = Attribute(
         """Gets and sets and deletes the Content-Range header. For more
         information on Content-Range see section 14.16. Converts using
         ContentRange object.""")
@@ -311,7 +311,7 @@ class IDict(Interface):
     def values():
         """ Return a list of values from the dictionary """
 
-    if not PY3:
+    if PY2:
 
         def iterkeys():
             """ Return an iterator of keys from the dictionary """
@@ -382,6 +382,9 @@ class IRendererInfo(Interface):
     settings = Attribute('The deployment settings dictionary related '
                          'to the current application')
 
+    def clone():
+        """ Return a shallow copy that does not share any mutable state."""
+
 class IRendererFactory(Interface):
     def __call__(info):
         """ Return an object that implements
@@ -439,36 +442,55 @@ class IViewMapperFactory(Interface):
 
 class IAuthenticationPolicy(Interface):
     """ An object representing a Pyramid authentication policy. """
+
     def authenticated_userid(request):
-        """ Return the authenticated userid or ``None`` if no authenticated
-        userid can be found. This method of the policy should ensure that a
-        record exists in whatever persistent store is used related to the
-        user (the user should not have been deleted); if a record associated
-        with the current id does not exist in a persistent store, it should
-        return ``None``."""
+        """ Return the authenticated :term:`userid` or ``None`` if
+        no authenticated userid can be found. This method of the
+        policy should ensure that a record exists in whatever
+        persistent store is used related to the user (the user
+        should not have been deleted); if a record associated with
+        the current id does not exist in a persistent store, it
+        should return ``None``.
+
+        """
 
     def unauthenticated_userid(request):
-        """ Return the *unauthenticated* userid.  This method performs the
-        same duty as ``authenticated_userid`` but is permitted to return the
-        userid based only on data present in the request; it needn't (and
-        shouldn't) check any persistent store to ensure that the user record
-        related to the request userid exists."""
+        """ Return the *unauthenticated* userid.  This method
+        performs the same duty as ``authenticated_userid`` but is
+        permitted to return the userid based only on data present
+        in the request; it needn't (and shouldn't) check any
+        persistent store to ensure that the user record related to
+        the request userid exists.
+
+        This method is intended primarily a helper to assist the
+        ``authenticated_userid`` method in pulling credentials out
+        of the request data, abstracting away the specific headers,
+        query strings, etc that are used to authenticate the request.
+
+        """
 
     def effective_principals(request):
         """ Return a sequence representing the effective principals
-        including the userid and any groups belonged to by the current
-        user, including 'system' groups such as Everyone and
-        Authenticated. """
+        typically including the :term:`userid` and any groups belonged
+        to by the current user, always including 'system' groups such
+        as ``pyramid.security.Everyone`` and
+        ``pyramid.security.Authenticated``.
 
-    def remember(request, principal, **kw):
+        """
+
+    def remember(request, userid, **kw):
         """ Return a set of headers suitable for 'remembering' the
-        principal named ``principal`` when set in a response.  An
-        individual authentication policy and its consumers can decide
-        on the composition and meaning of ``**kw.`` """
+        :term:`userid` named ``userid`` when set in a response.  An
+        individual authentication policy and its consumers can
+        decide on the composition and meaning of ``**kw``.
+
+        """
 
     def forget(request):
         """ Return a set of headers suitable for 'forgetting' the
-        current user on subsequent requests. """
+        current user on subsequent requests.
+
+        """
 
 class IAuthorizationPolicy(Interface):
     """ An object representing a Pyramid authorization policy. """
@@ -562,19 +584,20 @@ class IStaticURLInfo(Interface):
     def generate(path, request, **kw):
         """ Generate a URL for the given path """
 
+    def add_cache_buster(config, spec, cache_buster):
+        """ Add a new cache buster to a particular set of assets """
+
 class IResponseFactory(Interface):
-    """ A utility which generates a response factory """
-    def __call__():
-        """ Return a response factory (e.g. a callable that returns an object
-        implementing IResponse, e.g. :class:`pyramid.response.Response`). It
-        should accept all the arguments that the Pyramid Response class
-        accepts."""
+    """ A utility which generates a response """
+    def __call__(request):
+        """ Return a response object implementing IResponse,
+        e.g. :class:`pyramid.response.Response`). It should handle the
+        case when ``request`` is ``None``."""
 
 class IRequestFactory(Interface):
     """ A utility which generates a request """
     def __call__(environ):
-        """ Return an object implementing IRequest, e.g. an instance
-        of ``pyramid.request.Request``"""
+        """ Return an instance of ``pyramid.request.Request``"""
 
     def blank(path):
         """ Return an empty request object (see
@@ -708,7 +731,7 @@ class IRoute(Interface):
     pregenerator = Attribute('This attribute should either be ``None`` or '
                              'a callable object implementing the '
                              '``IRoutePregenerator`` interface')
-        
+
     def match(path):
         """
         If the ``path`` passed to this function can be matched by the
@@ -803,7 +826,7 @@ class IContextURL(IResourceURL):
     # <__main__.Fudge object at 0x1cda890>
     # <object object at 0x7fa678f3e2a0> <object object at 0x7fa678f3e2a0>
     # <__main__.Another object at 0x1cda850>
-    
+
     def virtual_root():
         """ Return the virtual root related to a request and the
         current context"""
@@ -837,9 +860,9 @@ class IPEP302Loader(Interface):
 
     def get_code(fullname):
         """ Return the code object for the module identified by 'fullname'.
-        
+
         Return 'None' if it's a built-in or extension module.
-        
+
         If the loader doesn't have the code object but it does have the source
         code, return the compiled source code.
 
@@ -848,16 +871,16 @@ class IPEP302Loader(Interface):
 
     def get_source(fullname):
         """ Return the source code for the module identified by 'fullname'.
-        
+
         Return a string, using newline characters for line endings, or None
         if the source is not available.
-            
+
         Raise ImportError if the module can't be found by the importer at all.
         """
 
     def get_filename(fullname):
         """ Return the value of '__file__' if the named module was loaded.
-        
+
         If the module is not found, raise ImportError.
         """
 
@@ -910,7 +933,13 @@ class ISession(IDict):
         ``invalidate`` is implementation-dependent, but it should have
         the effect of completely dissociating any data stored in the
         session with the current request.  It might set response
-        values (such as one which clears a cookie), or it might not."""
+        values (such as one which clears a cookie), or it might not.
+
+        An invalidated session may be used after the call to ``invalidate``
+        with the effect that a new session is created to store the data. This
+        enables workflows requiring an entirely new session, such as in the
+        case of changing privilege levels or preventing fixation attacks.
+        """
 
     def changed():
         """ Mark the session as changed. A user of a session should
@@ -1158,10 +1187,52 @@ class IJSONAdapter(Interface):
 class IPredicateList(Interface):
     """ Interface representing a predicate list """
 
+class ICacheBuster(Interface):
+    """
+    A cache buster modifies the URL generation machinery for
+    :meth:`~pyramid.request.Request.static_url`. See :ref:`cache_busting`.
+
+    .. versionadded:: 1.6
+    """
+    def __call__(request, subpath, kw):
+        """
+        Modifies a subpath and/or keyword arguments from which a static asset
+        URL will be computed during URL generation.
+
+        The ``subpath`` argument is a path of ``/``-delimited segments that
+        represent the portion of the asset URL which is used to find the asset.
+        The ``kw`` argument is a dict of keywords that are to be passed
+        eventually to :meth:`~pyramid.request.Request.static_url` for URL
+        generation.  The return value should be a two-tuple of
+        ``(subpath, kw)`` where ``subpath`` is the relative URL from where the
+        file is served and ``kw`` is the same input argument. The return value
+        should be modified to include the cache bust token in the generated
+        URL.
+
+        The ``kw`` dictionary contains extra arguments passed to
+        :meth:`~pyramid.request.Request.static_url` as well as some extra
+        items that may be usful including:
+
+          - ``pathspec`` is the path specification for the resource
+            to be cache busted.
+
+          - ``rawspec`` is the original location of the file, ignoring
+            any calls to :meth:`pyramid.config.Configurator.override_asset`.
+
+        The ``pathspec`` and ``rawspec`` values are only different in cases
+        where an asset has been mounted into a virtual location using
+        :meth:`pyramid.config.Configurator.override_asset`. For example, with
+        a call to ``request.static_url('myapp:static/foo.png'), the
+        ``pathspec`` is ``myapp:static/foo.png`` whereas the ``rawspec`` may
+        be ``themepkg:bar.png``, assuming a call to
+        ``config.override_asset('myapp:static/foo.png', 'themepkg:bar.png')``.
+        """
+
 # configuration phases: a lower phase number means the actions associated
 # with this phase will be executed earlier than those with later phase
 # numbers.  The default phase number is 0, FTR.
 
+PHASE0_CONFIG = -30
 PHASE1_CONFIG = -20
 PHASE2_CONFIG = -10
-
+PHASE3_CONFIG = 0

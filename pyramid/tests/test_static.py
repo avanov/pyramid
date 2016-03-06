@@ -1,5 +1,8 @@
 import datetime
+import os.path
 import unittest
+
+here = os.path.dirname(__file__)
 
 # 5 years from now (more or less)
 fiveyrsfuture = datetime.datetime.utcnow() + datetime.timedelta(5*365)
@@ -26,7 +29,7 @@ class Test_static_view_use_subpath_False(unittest.TestCase):
         if kw is not None:
             environ.update(kw)
         return Request(environ=environ)
-    
+
     def test_ctor_defaultargs(self):
         inst = self._makeOne('package:resource_name')
         self.assertEqual(inst.package_name, 'package')
@@ -106,6 +109,14 @@ class Test_static_view_use_subpath_False(unittest.TestCase):
     def test_resource_is_file(self):
         inst = self._makeOne('pyramid.tests:fixtures/static')
         request = self._makeRequest({'PATH_INFO':'/index.html'})
+        context = DummyContext()
+        response = inst(context, request)
+        self.assertTrue(b'<html>static</html>' in response.body)
+
+    def test_cachebust_match(self):
+        inst = self._makeOne('pyramid.tests:fixtures/static')
+        inst.cachebust_match = lambda subpath: subpath[1:]
+        request = self._makeRequest({'PATH_INFO':'/foo/index.html'})
         context = DummyContext()
         response = inst(context, request)
         self.assertTrue(b'<html>static</html>' in response.body)
@@ -218,7 +229,7 @@ class Test_static_view_use_subpath_True(unittest.TestCase):
         if kw is not None:
             environ.update(kw)
         return Request(environ=environ)
-    
+
     def test_ctor_defaultargs(self):
         inst = self._makeOne('package:resource_name')
         self.assertEqual(inst.package_name, 'package')
@@ -273,7 +284,7 @@ class Test_static_view_use_subpath_True(unittest.TestCase):
         context = DummyContext()
         from pyramid.httpexceptions import HTTPNotFound
         self.assertRaises(HTTPNotFound, inst, context, request)
-        
+
     def test_oob_os_sep(self):
         import os
         inst = self._makeOne('pyramid.tests:fixtures/static')
@@ -359,6 +370,109 @@ class Test_static_view_use_subpath_True(unittest.TestCase):
         context = DummyContext()
         from pyramid.httpexceptions import HTTPNotFound
         self.assertRaises(HTTPNotFound, inst, context, request)
+
+class TestQueryStringConstantCacheBuster(unittest.TestCase):
+
+    def _makeOne(self, param=None):
+        from pyramid.static import QueryStringConstantCacheBuster as cls
+        if param:
+            inst = cls('foo', param)
+        else:
+            inst = cls('foo')
+        return inst
+
+    def test_token(self):
+        fut = self._makeOne().tokenize
+        self.assertEqual(fut(None, 'whatever', None), 'foo')
+
+    def test_it(self):
+        fut = self._makeOne()
+        self.assertEqual(
+            fut('foo', 'bar', {}),
+            ('bar', {'_query': {'x': 'foo'}}))
+
+    def test_change_param(self):
+        fut = self._makeOne('y')
+        self.assertEqual(
+            fut('foo', 'bar', {}),
+            ('bar', {'_query': {'y': 'foo'}}))
+
+    def test_query_is_already_tuples(self):
+        fut = self._makeOne()
+        self.assertEqual(
+            fut('foo', 'bar', {'_query': [('a', 'b')]}),
+            ('bar', {'_query': (('a', 'b'), ('x', 'foo'))}))
+
+    def test_query_is_tuple_of_tuples(self):
+        fut = self._makeOne()
+        self.assertEqual(
+            fut('foo', 'bar', {'_query': (('a', 'b'),)}),
+            ('bar', {'_query': (('a', 'b'), ('x', 'foo'))}))
+
+class TestManifestCacheBuster(unittest.TestCase):
+
+    def _makeOne(self, path, **kw):
+        from pyramid.static import ManifestCacheBuster as cls
+        return cls(path, **kw)
+
+    def test_it(self):
+        manifest_path = os.path.join(here, 'fixtures', 'manifest.json')
+        fut = self._makeOne(manifest_path)
+        self.assertEqual(fut('foo', 'bar', {}), ('bar', {}))
+        self.assertEqual(
+            fut('foo', 'css/main.css', {}),
+            ('css/main-test.css', {}))
+
+    def test_it_with_relspec(self):
+        fut = self._makeOne('fixtures/manifest.json')
+        self.assertEqual(fut('foo', 'bar', {}), ('bar', {}))
+        self.assertEqual(
+            fut('foo', 'css/main.css', {}),
+            ('css/main-test.css', {}))
+
+    def test_it_with_absspec(self):
+        fut = self._makeOne('pyramid.tests:fixtures/manifest.json')
+        self.assertEqual(fut('foo', 'bar', {}), ('bar', {}))
+        self.assertEqual(
+            fut('foo', 'css/main.css', {}),
+            ('css/main-test.css', {}))
+
+    def test_reload(self):
+        manifest_path = os.path.join(here, 'fixtures', 'manifest.json')
+        new_manifest_path = os.path.join(here, 'fixtures', 'manifest2.json')
+        inst = self._makeOne('foo', reload=True)
+        inst.getmtime = lambda *args, **kwargs: 0
+        fut = inst
+
+        # test without a valid manifest
+        self.assertEqual(
+            fut('foo', 'css/main.css', {}),
+            ('css/main.css', {}))
+
+        # swap to a real manifest, setting mtime to 0
+        inst.manifest_path = manifest_path
+        self.assertEqual(
+            fut('foo', 'css/main.css', {}),
+            ('css/main-test.css', {}))
+
+        # ensure switching the path doesn't change the result
+        inst.manifest_path = new_manifest_path
+        self.assertEqual(
+            fut('foo', 'css/main.css', {}),
+            ('css/main-test.css', {}))
+
+        # update mtime, should cause a reload
+        inst.getmtime = lambda *args, **kwargs: 1
+        self.assertEqual(
+            fut('foo', 'css/main.css', {}),
+            ('css/main-678b7c80.css', {}))
+
+    def test_invalid_manifest(self):
+        self.assertRaises(IOError, lambda: self._makeOne('foo'))
+
+    def test_invalid_manifest_with_reload(self):
+        inst = self._makeOne('foo', reload=True)
+        self.assertEqual(inst.manifest, {})
 
 class DummyContext:
     pass

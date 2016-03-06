@@ -17,6 +17,8 @@ Authenticated = 'system.Authenticated'
 Allow = 'Allow'
 Deny = 'Deny'
 
+_marker = object()
+
 class AllPermissionsList(object):
     """ Stand in 'permission list' to represent all permissions """
     def __iter__(self):
@@ -59,7 +61,7 @@ def has_permission(permission, context, request):
 deprecated(
     'has_permission',
     'As of Pyramid 1.5 the "pyramid.security.has_permission" API is now '
-    'deprecated.  It will be removed in Pyramd 1.8.  Use the '
+    'deprecated.  It will be removed in Pyramid 1.8.  Use the '
     '"has_permission" method of the Pyramid request instead.'
     )
 
@@ -77,7 +79,7 @@ def authenticated_userid(request):
 deprecated(
     'authenticated_userid',
     'As of Pyramid 1.5 the "pyramid.security.authenticated_userid" API is now '
-    'deprecated.  It will be removed in Pyramd 1.8.  Use the '
+    'deprecated.  It will be removed in Pyramid 1.8.  Use the '
     '"authenticated_userid" attribute of the Pyramid request instead.'
     )
 
@@ -94,7 +96,7 @@ def unauthenticated_userid(request):
 deprecated(
     'unauthenticated_userid',
     'As of Pyramid 1.5 the "pyramid.security.unauthenticated_userid" API is '
-    'now deprecated.  It will be removed in Pyramd 1.8.  Use the '
+    'now deprecated.  It will be removed in Pyramid 1.8.  Use the '
     '"unauthenticated_userid" attribute of the Pyramid request instead.'
     )
 
@@ -111,20 +113,20 @@ def effective_principals(request):
 deprecated(
     'effective_principals',
     'As of Pyramid 1.5 the "pyramid.security.effective_principals" API is '
-    'now deprecated.  It will be removed in Pyramd 1.8.  Use the '
+    'now deprecated.  It will be removed in Pyramid 1.8.  Use the '
     '"effective_principals" attribute of the Pyramid request instead.'
     )
 
-def remember(request, principal, **kw):
+def remember(request, userid=_marker, **kw):
     """
     Returns a sequence of header tuples (e.g. ``[('Set-Cookie', 'foo=abc')]``)
     on this request's response.
     These headers are suitable for 'remembering' a set of credentials
-    implied by the data passed as ``principal`` and ``*kw`` using the
+    implied by the data passed as ``userid`` and ``*kw`` using the
     current :term:`authentication policy`.  Common usage might look
     like so within the body of a view function (``response`` is
     assumed to be a :term:`WebOb` -style :term:`response` object
-    computed previously by the view code)::
+    computed previously by the view code):
 
     .. code-block:: python
 
@@ -138,11 +140,28 @@ def remember(request, principal, **kw):
     always return an empty sequence. If used, the composition and
     meaning of ``**kw`` must be agreed upon by the calling code and
     the effective authentication policy.
+    
+    .. deprecated:: 1.6
+        Renamed the ``principal`` argument to ``userid`` to clarify its
+        purpose.
     """
+    if userid is _marker:
+        principal = kw.pop('principal', _marker)
+        if principal is _marker:
+            raise TypeError(
+                'remember() missing 1 required positional argument: '
+                '\'userid\'')
+        else:
+            deprecated(
+                'principal',
+                'The "principal" argument was deprecated in Pyramid 1.6. '
+                'It will be removed in Pyramid 1.9. Use the "userid" '
+                'argument instead.')
+            userid = principal
     policy = _get_authentication_policy(request)
     if policy is None:
         return []
-    return policy.remember(request, principal, **kw)
+    return policy.remember(request, userid, **kw)
 
 def forget(request):
     """
@@ -151,12 +170,14 @@ def forget(request):
     possessed by the currently authenticated user.  A common usage
     might look like so within the body of a view function
     (``response`` is assumed to be an :term:`WebOb` -style
-    :term:`response` object computed previously by the view code)::
+    :term:`response` object computed previously by the view code):
 
-      from pyramid.security import forget
-      headers = forget(request)
-      response.headerlist.extend(headers)
-      return response
+    .. code-block:: python
+
+       from pyramid.security import forget
+       headers = forget(request)
+       response.headerlist.extend(headers)
+       return response
 
     If no :term:`authentication policy` is in use, this function will
     always return an empty sequence.
@@ -204,6 +225,8 @@ def view_execution_permitted(context, request, name=''):
     """
     reg = _get_registry(request)
     provides = [IViewClassifier] + map_(providedBy, (request, context))
+    # XXX not sure what to do here about using _find_views or analogue;
+    # for now let's just keep it as-is
     view = reg.adapters.lookup(provides, ISecuredView, name=name)
     if view is None:
         view = reg.adapters.lookup(provides, IView, name=name)

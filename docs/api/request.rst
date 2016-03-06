@@ -11,7 +11,7 @@
    :exclude-members: add_response_callback, add_finished_callback,
                      route_url, route_path, current_route_url,
                      current_route_path, static_url, static_path,
-                     model_url, resource_url, set_property, 
+                     model_url, resource_url, resource_path, set_property, 
                      effective_principals, authenticated_userid,
                      unauthenticated_userid, has_permission
 
@@ -167,37 +167,40 @@
 
       .. versionadded:: 1.5
 
-      A property which returns the userid of the currently authenticated user
-      or ``None`` if there is no :term:`authentication policy` in effect or
-      there is no currently authenticated user.  This differs from
-      :attr:`~pyramid.request.Request.unauthenticated_userid`, because the
-      effective authentication policy will have ensured that a record
-      associated with the userid exists in persistent storage; if it has
-      not, this value will be ``None``.
+      A property which returns the :term:`userid` of the currently
+      authenticated user or ``None`` if there is no :term:`authentication
+      policy` in effect or there is no currently authenticated user.  This
+      differs from :attr:`~pyramid.request.Request.unauthenticated_userid`,
+      because the effective authentication policy will have ensured that a
+      record associated with the :term:`userid` exists in persistent storage;
+      if it has not, this value will be ``None``.
 
    .. attribute:: unauthenticated_userid
 
       .. versionadded:: 1.5
 
       A property which returns a value which represents the *claimed* (not
-      verified) user id of the credentials present in the request. ``None`` if
-      there is no :term:`authentication policy` in effect or there is no user
-      data associated with the current request.  This differs from
-      :attr:`~pyramid.request.Request.authenticated_userid`, because the
-      effective authentication policy will not ensure that a record associated
-      with the userid exists in persistent storage.  Even if the userid
-      does not exist in persistent storage, this value will be the value
-      of the userid *claimed* by the request data.
+      verified) :term:`userid` of the credentials present in the
+      request. ``None`` if there is no :term:`authentication policy` in effect
+      or there is no user data associated with the current request.  This
+      differs from :attr:`~pyramid.request.Request.authenticated_userid`,
+      because the effective authentication policy will not ensure that a
+      record associated with the :term:`userid` exists in persistent storage.
+      Even if the :term:`userid` does not exist in persistent storage, this
+      value will be the value of the :term:`userid` *claimed* by the request
+      data.
 
    .. attribute:: effective_principals
 
       .. versionadded:: 1.5
 
       A property which returns the list of 'effective' :term:`principal`
-      identifiers for this request.  This will include the userid of the
-      currently authenticated user if a user is currently authenticated. If no
-      :term:`authentication policy` is in effect, this will return a sequence
-      containing only the :attr:`pyramid.security.Everyone` principal.
+      identifiers for this request.  This list typically includes the
+      :term:`userid` of the currently authenticated user if a user is
+      currently authenticated, but this depends on the
+      :term:`authentication policy` in effect.  If no :term:`authentication
+      policy` is in effect, this will return a sequence containing only the
+      :attr:`pyramid.security.Everyone` principal.
 
    .. method:: invoke_subrequest(request, use_tweens=False)
 
@@ -319,7 +322,13 @@
 
           def _connect(request):
               conn = request.registry.dbsession()
-              def cleanup(_):
+              def cleanup(request):
+                  # since version 1.5, request.exception is no
+                  # longer eagerly cleared
+                  if request.exception is not None:
+                      conn.rollback()
+                  else:
+                      conn.commit()
                   conn.close()
               request.add_finished_callback(cleanup)
               return conn
@@ -360,3 +369,4 @@
    that used as ``request.GET``, ``request.POST``, and ``request.params``),
    see :class:`pyramid.interfaces.IMultiDict`.
 
+.. autofunction:: apply_request_extensions(request)

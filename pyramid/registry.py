@@ -1,10 +1,12 @@
 import operator
+import threading
 
 from zope.interface import implementer
 
 from zope.interface.registry import Components
 
 from pyramid.compat import text_
+from pyramid.decorator import reify
 
 from pyramid.interfaces import (
     ISettings,
@@ -38,9 +40,24 @@ class Registry(Components, dict):
 
     _settings = None
 
+    def __init__(self, *arg, **kw):
+        # add a registry-instance-specific lock, which is used when the lookup
+        # cache is mutated
+        self._lock = threading.Lock()
+        # add a view lookup cache
+        self._clear_view_lookup_cache()
+        Components.__init__(self, *arg, **kw)
+
+    def _clear_view_lookup_cache(self):
+        self._view_lookup_cache = {}
+
     def __nonzero__(self):
         # defeat bool determination via dict.__len__
         return True
+
+    @reify
+    def package_name(self):
+        return self.__name__
 
     def registerSubscriptionAdapter(self, *arg, **kw):
         result = Components.registerSubscriptionAdapter(self, *arg, **kw)
@@ -112,10 +129,10 @@ class Introspector(object):
         values = category.values()
         values = sorted(set(values), key=sort_key)
         return [
-            {'introspectable':intr,
-             'related':self.related(intr)}
-             for intr in values
-             ]
+            {'introspectable': intr,
+             'related': self.related(intr)}
+            for intr in values
+        ]
 
     def categorized(self, sort_key=None):
         L = []

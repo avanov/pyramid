@@ -15,6 +15,7 @@ from pyramid.compat import (
 
 fsenc = sys.getfilesystemencoding()
 
+
 class SkipTemplate(Exception):
     """
     Raised to indicate that the template should not be copied over.
@@ -61,7 +62,7 @@ def copy_dir(source, dest, vars, verbosity, simulate, indent=0,
         names = sorted(pkg_resources.resource_listdir(source[0], source[1]))
     else:
         names = sorted(os.listdir(source))
-    pad = ' '*(indent*2)
+    pad = ' ' * (indent * 2)
     if not os.path.exists(dest):
         if verbosity >= 1:
             out('%sCreating %s/' % (pad, dest))
@@ -90,7 +91,7 @@ def copy_dir(source, dest, vars, verbosity, simulate, indent=0,
             if verbosity:
                 out('%sRecursing into %s' % (pad, os.path.basename(full)))
             copy_dir((source[0], full), dest_full, vars, verbosity, simulate,
-                     indent=indent+1, sub_vars=sub_vars, 
+                     indent=indent + 1, sub_vars=sub_vars,
                      interactive=interactive, overwrite=overwrite,
                      template_renderer=template_renderer, out_=out_)
             continue
@@ -98,16 +99,15 @@ def copy_dir(source, dest, vars, verbosity, simulate, indent=0,
             if verbosity:
                 out('%sRecursing into %s' % (pad, os.path.basename(full)))
             copy_dir(full, dest_full, vars, verbosity, simulate,
-                     indent=indent+1, sub_vars=sub_vars, 
+                     indent=indent + 1, sub_vars=sub_vars,
                      interactive=interactive, overwrite=overwrite,
                      template_renderer=template_renderer, out_=out_)
             continue
         elif use_pkg_resources:
             content = pkg_resources.resource_string(source[0], full)
         else:
-            f = open(full, 'rb')
-            content = f.read()
-            f.close()
+            with open(full, 'rb') as f:
+                content = f.read()
         if sub_file:
             try:
                 content = substitute_content(
@@ -120,9 +120,8 @@ def copy_dir(source, dest, vars, verbosity, simulate, indent=0,
                 continue  # pragma: no cover
         already_exists = os.path.exists(dest_full)
         if already_exists:
-            f = open(dest_full, 'rb')
-            old_content = f.read()
-            f.close()
+            with open(dest_full, 'rb') as f:
+                old_content = f.read()
             if old_content == content:
                 if verbosity:
                     out('%s%s already exists (same content)' %
@@ -143,9 +142,8 @@ def copy_dir(source, dest, vars, verbosity, simulate, indent=0,
                 '%sCopying %s to %s' % (pad, os.path.basename(full),
                                         dest_full))
         if not simulate:
-            f = open(dest_full, 'wb')
-            f.write(content)
-            f.close()
+            with open(dest_full, 'wb') as f:
+                f.write(content)
 
 def should_skip_file(name):
     """
@@ -185,14 +183,14 @@ def query_interactive(src_fn, dest_fn, src_content, dest_content,
         dest_content.splitlines(),
         src_content.splitlines(),
         dest_fn, src_fn))
-    added = len([l for l in u_diff if l.startswith('+')
-                   and not l.startswith('+++')])
-    removed = len([l for l in u_diff if l.startswith('-')
-                   and not l.startswith('---')])
+    added = len([l for l in u_diff if l.startswith('+') and
+                 not l.startswith('+++')])
+    removed = len([l for l in u_diff if l.startswith('-') and
+                   not l.startswith('---')])
     if added > removed:
-        msg = '; %i lines added' % (added-removed)
+        msg = '; %i lines added' % (added - removed)
     elif removed > added:
-        msg = '; %i lines removed' % (removed-added)
+        msg = '; %i lines removed' % (removed - added)
     else:
         msg = ''
     out('Replace %i bytes with %i bytes (%i/%i lines changed%s)' % (

@@ -1,3 +1,4 @@
+import base64
 import json
 import unittest
 from pyramid import testing
@@ -60,6 +61,18 @@ class SharedCookieSessionTests(object):
         request.cookies['session'] = cookieval
         session = self._makeOne(request, timeout=None)
         self.assertEqual(dict(session), {'state': 1})
+
+    def test_timeout_str(self):
+        import time
+        request = testing.DummyRequest()
+        cookieval = self._serialize((time.time() - 5, 0, {'state': 1}))
+        request.cookies['session'] = cookieval
+        session = self._makeOne(request, timeout='1')
+        self.assertEqual(dict(session), {})
+
+    def test_timeout_invalid(self):
+        request = testing.DummyRequest()
+        self.assertRaises(ValueError, self._makeOne, request, timeout='Invalid value')
 
     def test_changed(self):
         request = testing.DummyRequest()
@@ -277,7 +290,7 @@ class TestBaseCookieSession(SharedCookieSessionTests, unittest.TestCase):
         return BaseCookieSessionFactory(serializer, **kw)(request)
 
     def _serialize(self, value):
-        return json.dumps(value)
+        return base64.b64encode(json.dumps(value).encode('utf-8'))
 
     def test_reissue_not_triggered(self):
         import time
@@ -295,6 +308,23 @@ class TestBaseCookieSession(SharedCookieSessionTests, unittest.TestCase):
         session = self._makeOne(request, reissue_time=None, timeout=None)
         self.assertEqual(session['state'], 1)
         self.assertFalse(session._dirty)
+
+    def test_reissue_str_triggered(self):
+        import time
+        request = testing.DummyRequest()
+        cookieval = self._serialize((time.time() - 2, 0, {'state': 1}))
+        request.cookies['session'] = cookieval
+        session = self._makeOne(request, reissue_time='0')
+        self.assertEqual(session['state'], 1)
+        self.assertTrue(session._dirty)
+
+    def test_reissue_invalid(self):
+        request = testing.DummyRequest()
+        self.assertRaises(ValueError, self._makeOne, request, reissue_time='invalid value')
+
+    def test_cookie_max_age_invalid(self):
+        request = testing.DummyRequest()
+        self.assertRaises(ValueError, self._makeOne, request, max_age='invalid value')
 
 class TestSignedCookieSession(SharedCookieSessionTests, unittest.TestCase):
     def _makeOne(self, request, **kw):
@@ -329,6 +359,23 @@ class TestSignedCookieSession(SharedCookieSessionTests, unittest.TestCase):
         session = self._makeOne(request, reissue_time=None, timeout=None)
         self.assertEqual(session['state'], 1)
         self.assertFalse(session._dirty)
+
+    def test_reissue_str_triggered(self):
+        import time
+        request = testing.DummyRequest()
+        cookieval = self._serialize((time.time() - 2, 0, {'state': 1}))
+        request.cookies['session'] = cookieval
+        session = self._makeOne(request, reissue_time='0')
+        self.assertEqual(session['state'], 1)
+        self.assertTrue(session._dirty)
+
+    def test_reissue_invalid(self):
+        request = testing.DummyRequest()
+        self.assertRaises(ValueError, self._makeOne, request, reissue_time='invalid value')
+
+    def test_cookie_max_age_invalid(self):
+        request = testing.DummyRequest()
+        self.assertRaises(ValueError, self._makeOne, request, max_age='invalid value')
 
     def test_custom_salt(self):
         import time
@@ -521,7 +568,7 @@ class Test_manage_accessed(unittest.TestCase):
         result = wrapper(session, 'a')
         self.assertEqual(result, 1)
         callbacks = request.response_callbacks
-        self.assertEqual(len(callbacks), 0)
+        if callbacks is not None: self.assertEqual(len(callbacks), 0)
 
 class Test_manage_changed(unittest.TestCase):
     def _makeOne(self, wrapped):
@@ -544,7 +591,7 @@ def serialize(data, secret):
     from pyramid.compat import native_
     from pyramid.compat import pickle
     pickled = pickle.dumps(data, pickle.HIGHEST_PROTOCOL)
-    sig = hmac.new(bytes_(secret), pickled, sha1).hexdigest()
+    sig = hmac.new(bytes_(secret, 'utf-8'), pickled, sha1).hexdigest()
     return sig + native_(base64.b64encode(pickled))
 
 class Test_signed_serialize(unittest.TestCase):
@@ -555,6 +602,18 @@ class Test_signed_serialize(unittest.TestCase):
     def test_it(self):
         expected = serialize('123', 'secret')
         result = self._callFUT('123', 'secret')
+        self.assertEqual(result, expected)
+
+    def test_it_with_highorder_secret(self):
+        secret = b'\xce\xb1\xce\xb2\xce\xb3\xce\xb4'.decode('utf-8')
+        expected = serialize('123', secret)
+        result = self._callFUT('123', secret)
+        self.assertEqual(result, expected)
+
+    def test_it_with_latin1_secret(self):
+        secret = b'La Pe\xc3\xb1a'
+        expected = serialize('123', secret)
+        result = self._callFUT('123', secret.decode('latin-1'))
         self.assertEqual(result, expected)
         
 class Test_signed_deserialize(unittest.TestCase):
@@ -586,6 +645,19 @@ class Test_signed_deserialize(unittest.TestCase):
     def test_it_bad_encoding(self):
         serialized = 'bad' + serialize('123', 'secret')
         self.assertRaises(ValueError, self._callFUT, serialized, 'secret')
+
+    def test_it_with_highorder_secret(self):
+        secret = b'\xce\xb1\xce\xb2\xce\xb3\xce\xb4'.decode('utf-8')
+        serialized = serialize('123', secret)
+        result = self._callFUT(serialized, secret)
+        self.assertEqual(result, '123')
+
+    # bwcompat with pyramid <= 1.5b1 where latin1 is the default
+    def test_it_with_latin1_secret(self):
+        secret = b'La Pe\xc3\xb1a'
+        serialized = serialize('123', secret)
+        result = self._callFUT(serialized, secret.decode('latin-1'))
+        self.assertEqual(result, '123')
 
 class Test_check_csrf_token(unittest.TestCase):
     def _callFUT(self, *args, **kwargs):
@@ -623,12 +695,25 @@ class Test_check_csrf_token(unittest.TestCase):
         result = self._callFUT(request, 'csrf_token', raises=False)
         self.assertEqual(result, False)
 
+    def test_token_differing_types(self):
+        from pyramid.compat import text_
+        request = testing.DummyRequest()
+        request.session['_csrft_'] = text_('foo')
+        request.params['csrf_token'] = b'foo'
+        self.assertEqual(self._callFUT(request, token='csrf_token'), True)
+
 class DummySerializer(object):
     def dumps(self, value):
-        return json.dumps(value).encode('utf-8')
+        return base64.b64encode(json.dumps(value).encode('utf-8'))
 
     def loads(self, value):
-        return json.loads(value.decode('utf-8'))
+        try:
+            return json.loads(base64.b64decode(value).decode('utf-8'))
+
+        # base64.b64decode raises a TypeError on py2 instead of a ValueError
+        # and a ValueError is required for the session to handle it properly
+        except TypeError:
+            raise ValueError
 
 class DummySessionFactory(dict):
     _dirty = False

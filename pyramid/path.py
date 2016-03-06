@@ -15,7 +15,7 @@ init_names = [ '__init__%s' % x[0] for x in imp.get_suffixes() if
 
 def caller_path(path, level=2):
     if not os.path.isabs(path):
-        module = caller_module(level+1)
+        module = caller_module(level + 1)
         prefix = package_path(module)
         path = os.path.join(prefix, path)
     return path
@@ -53,7 +53,7 @@ def package_of(pkg_or_module):
 
 def caller_package(level=2, caller_module=caller_module):
     # caller_module in arglist for tests
-    module = caller_module(level+1)
+    module = caller_module(level + 1)
     f = getattr(module, '__file__', '')
     if (('__init__.py' in f) or ('__init__$py' in f)): # empty at >>>
         # Module is a package
@@ -337,8 +337,14 @@ class DottedNameResolver(Resolver):
                 value = package.__name__
             else:
                 value = package.__name__ + value
-        return pkg_resources.EntryPoint.parse(
-            'x=%s' % value).load(False)
+        # Calling EntryPoint.load with an argument is deprecated.
+        # See https://pythonhosted.org/setuptools/history.html#id8
+        ep = pkg_resources.EntryPoint.parse('x=%s' % value)
+        if hasattr(ep, 'resolve'):
+            # setuptools>=10.2
+            return ep.resolve()  # pragma: NO COVER
+        else:
+            return ep.load(False)  # pragma: NO COVER
 
     def _zope_dottedname_style(self, value, package):
         """ package.module.attr style """
@@ -390,7 +396,8 @@ class PkgResourcesAssetDescriptor(object):
         return '%s:%s' % (self.pkg_name, self.path)
 
     def abspath(self):
-        return self.pkg_resources.resource_filename(self.pkg_name, self.path)
+        return os.path.abspath(
+            self.pkg_resources.resource_filename(self.pkg_name, self.path))
 
     def stream(self):
         return self.pkg_resources.resource_stream(self.pkg_name, self.path)

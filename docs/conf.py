@@ -20,6 +20,7 @@ import warnings
 warnings.simplefilter('ignore', DeprecationWarning)
 
 import pkg_resources
+import pylons_sphinx_themes
 
 # skip raw nodes
 from sphinx.writers.text import TextTranslator
@@ -52,41 +53,32 @@ extensions = [
     'sphinx.ext.doctest',
     'repoze.sphinx.autointerface',
     'sphinx.ext.viewcode',
-    'sphinx.ext.intersphinx'
+    'sphinx.ext.intersphinx',
+    'sphinxcontrib.programoutput',
+    # enable pylons_sphinx_latesturl when this branch is no longer "latest"
+    # 'pylons_sphinx_latesturl',
     ]
 
 # Looks for objects in external projects
 intersphinx_mapping = {
-    'tutorials': ('http://docs.pylonsproject.org/projects/pyramid_tutorials/en/latest/', None),
-    'jinja2': ('http://docs.pylonsproject.org/projects/pyramid_jinja2/en/latest/', None),
-    'tm': (
-        'http://docs.pylonsproject.org/projects/pyramid_tm/en/latest/',
-        None,
-    ),
-    'zcomponent': ('http://docs.zope.org/zope.component', None),
-    'webtest': ('http://webtest.pythonpaste.org/en/latest', None),
-    'webob': ('http://docs.webob.org/en/latest', None),
-    'colander': (
-        'http://docs.pylonsproject.org/projects/colander/en/latest',
-    None),
-    'deform': (
-        'http://docs.pylonsproject.org/projects/deform/en/latest',
-    None),
-    'sqla': ('http://docs.sqlalchemy.org/en/latest', None),
-    'who': ('http://docs.repoze.org/who/latest', None),
+    'colander': ('http://docs.pylonsproject.org/projects/colander/en/latest', None),
+    'cookbook': ('http://docs.pylonsproject.org/projects/pyramid-cookbook/en/latest/', None),
+    'deform': ('http://docs.pylonsproject.org/projects/deform/en/latest', None),
+    'jinja2': ('http://docs.pylonsproject.org/projects/pyramid-jinja2/en/latest/', None),
+    'pylonswebframework': ('http://docs.pylonsproject.org/projects/pylons-webframework/en/latest/', None),
     'python': ('http://docs.python.org', None),
     'python3': ('http://docs.python.org/3', None),
-    'tstring':
-        ('http://docs.pylonsproject.org/projects/translationstring/en/latest',
-          None),
-    'venusian':
-        ('http://docs.pylonsproject.org/projects/venusian/en/latest', None),
-    'toolbar':
-        ('http://docs.pylonsproject.org/projects/pyramid_debugtoolbar/en/latest',
-         None),
-    'zcml':
-        ('http://docs.pylonsproject.org/projects/pyramid_zcml/en/latest',
-         None),
+    'sqla': ('http://docs.sqlalchemy.org/en/latest', None),
+    'tm': ('http://docs.pylonsproject.org/projects/pyramid-tm/en/latest/', None),
+    'toolbar': ('http://docs.pylonsproject.org/projects/pyramid-debugtoolbar/en/latest', None),
+    'tstring': ('http://docs.pylonsproject.org/projects/translationstring/en/latest', None),
+    'tutorials': ('http://docs.pylonsproject.org/projects/pyramid-tutorials/en/latest/', None),
+    'venusian': ('http://docs.pylonsproject.org/projects/venusian/en/latest', None),
+    'webob': ('http://docs.webob.org/en/latest', None),
+    'webtest': ('http://webtest.pythonpaste.org/en/latest', None),
+    'who': ('http://repozewho.readthedocs.org/en/latest', None),
+    'zcml': ('http://docs.pylonsproject.org/projects/pyramid-zcml/en/latest', None),
+    'zcomponent': ('http://docs.zope.org/zope.component', None),
 }
 
 
@@ -134,27 +126,30 @@ if book:
 
 # Options for HTML output
 # -----------------------
+# enable pylons_sphinx_latesturl when this branch is no longer "latest"
+# pylons_sphinx_latesturl_base = (
+#     'http://docs.pylonsproject.org/projects/pyramid/en/latest/')
+# pylons_sphinx_latesturl_pagename_overrides = {
+#     # map old pagename -> new pagename
+#     'whatsnew-1.0': 'index',
+#     'whatsnew-1.1': 'index',
+#     'whatsnew-1.2': 'index',
+#     'whatsnew-1.3': 'index',
+#     'whatsnew-1.4': 'index',
+#     'whatsnew-1.5': 'index',
+#     'tutorials/gae/index': 'index',
+#     'api/chameleon_text': 'api',
+#     'api/chameleon_zpt': 'api',
+# }
 
-# Add and use Pylons theme
-if 'sphinx-build' in ' '.join(sys.argv):  # protect against dumb importers
-    from subprocess import call, Popen, PIPE
-
-    p = Popen('which git', shell=True, stdout=PIPE)
-    cwd = os.getcwd()
-    _themes = os.path.join(cwd, '_themes')
-    git = p.stdout.read().strip()
-    if not os.listdir(_themes):
-        call([git, 'submodule', '--init'])
-    else:
-        call([git, 'submodule', 'update'])
-
-    sys.path.append(os.path.abspath('_themes'))
-
-html_theme_path = ['_themes']
 html_theme = 'pyramid'
+html_theme_path = pylons_sphinx_themes.get_html_themes_path()
 html_theme_options = dict(
     github_url='https://github.com/Pylons/pyramid',
+    # on master branch true, else false
     in_progress='true',
+    # on previous branches/major releases true, else false
+    outdated='false',
     )
 
 # The name for this set of Sphinx documents.  If None, it defaults to

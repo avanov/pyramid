@@ -81,7 +81,7 @@ class StaticAppBase(IntegrationBase):
         res = self.testapp.get('/static/.hiddenfile', status=200)
         _assertBody(res.body, os.path.join(here, 'fixtures/static/.hiddenfile'))
 
-    if defaultlocale is not None:
+    if defaultlocale is not None: # pragma: no cover
         # These tests are expected to fail on LANG=C systems due to decode
         # errors and on non-Linux systems due to git highchar handling
         # vagaries
@@ -639,6 +639,48 @@ class RendererScanAppTest(IntegrationBase, unittest.TestCase):
         self.assertTrue(b'One!' in res.body)
         res = testapp.get('/two', status=200)
         self.assertTrue(b'Two!' in res.body)
+
+class UnicodeInURLTest(unittest.TestCase):
+    def _makeConfig(self):
+        from pyramid.config import Configurator
+        config = Configurator()
+        return config
+
+    def _makeTestApp(self, config):
+        from webtest import TestApp
+        app = config.make_wsgi_app()
+        return TestApp(app)
+
+    def test_unicode_in_url_404(self):
+        request_path = '/avalia%C3%A7%C3%A3o_participante'
+        request_path_unicode = b'/avalia\xc3\xa7\xc3\xa3o_participante'.decode('utf-8')
+
+        config = self._makeConfig()
+        testapp = self._makeTestApp(config)
+
+        res = testapp.get(request_path, status=404)
+
+        # Pyramid default 404 handler outputs:
+        # u'404 Not Found\n\nThe resource could not be found.\n\n\n'
+        # u'/avalia\xe7\xe3o_participante\n\n'
+        self.assertTrue(request_path_unicode in res.text)
+
+    def test_unicode_in_url_200(self):
+        request_path = '/avalia%C3%A7%C3%A3o_participante'
+        request_path_unicode = b'/avalia\xc3\xa7\xc3\xa3o_participante'.decode('utf-8')
+
+        def myview(request):
+            return 'XXX'
+
+        config = self._makeConfig()
+        config.add_route('myroute', request_path_unicode)
+        config.add_view(myview, route_name='myroute', renderer='json')
+        testapp = self._makeTestApp(config)
+
+        res = testapp.get(request_path, status=200)
+
+        self.assertEqual(res.text, '"XXX"')
+
 
 class AcceptContentTypeTest(unittest.TestCase):
     def setUp(self):
