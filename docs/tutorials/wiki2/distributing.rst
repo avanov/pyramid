@@ -1,3 +1,5 @@
+.. _wiki2_distributing_your_application:
+
 =============================
 Distributing Your Application
 =============================
@@ -15,7 +17,7 @@ On UNIX:
 
 On Windows:
 
-.. code-block:: ps1con
+.. code-block:: doscon
 
    c:\pyramidtut> %VENV%\Scripts\python setup.py sdist
 
@@ -33,6 +35,6 @@ Note that this command creates a tarball in the "dist" subdirectory named
 ``tutorial-0.0.tar.gz``.  You can send this file to your friends to show them
 your cool new application.  They should be able to install it by pointing the
 ``easy_install`` command directly at it. Or you can upload it to `PyPI
-<http://pypi.python.org>`_ and share it with the rest of the world, where it
-can be downloaded via ``easy_install`` remotely like any other package people
-download from PyPI.
+<https://pypi.python.org/pypi>`_ and share it with the rest of the world, where
+it can be downloaded via ``easy_install`` remotely like any other package
+people download from PyPI.

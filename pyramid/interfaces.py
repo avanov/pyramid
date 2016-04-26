@@ -25,6 +25,14 @@ class IContextFound(Interface):
 
 IAfterTraversal = IContextFound
 
+class IBeforeTraversal(Interface):
+    """
+    An event type that is emitted after :app:`Pyramid` attempted to find a
+    route but before it calls any traversal or view code. See the documentation
+    attached to :class:`pyramid.events.Routefound` for more information.
+    """
+    request = Attribute('The request object')
+
 class INewRequest(Interface):
     """ An event type that is emitted whenever :app:`Pyramid`
     begins to process a new request.  See the documentation attached
@@ -908,6 +916,16 @@ class IDefaultPermission(Interface):
     for all view configurations which do not explicitly declare their
     own."""
 
+class IDefaultCSRFOptions(Interface):
+    """ An object representing the default CSRF settings to be used for
+    all view configurations which do not explicitly declare their own."""
+    require_csrf = Attribute(
+        'Boolean attribute. If ``True``, then CSRF checks will be enabled by '
+        'default for the view unless overridden.')
+    token = Attribute('The key to be matched in the body of the request.')
+    header = Attribute('The header to be matched with the CSRF token.')
+    safe_methods = Attribute('A set of safe methods that skip CSRF checks.')
+
 class ISessionFactory(Interface):
     """ An interface representing a factory which accepts a request object and
     returns an ISession object """
@@ -1186,6 +1204,39 @@ class IJSONAdapter(Interface):
 
 class IPredicateList(Interface):
     """ Interface representing a predicate list """
+
+class IViewDeriver(Interface):
+    options = Attribute('A list of supported options to be passed to '
+                        ':meth:`pyramid.config.Configurator.add_view`. '
+                        'This attribute is optional.')
+
+    def __call__(view, info):
+        """
+        Derive a new view from the supplied view.
+
+        View options, package information and registry are available on
+        ``info``, an instance of :class:`pyramid.interfaces.IViewDeriverInfo`.
+
+        The ``view`` is a callable accepting ``(context, request)``.
+
+        """
+
+class IViewDeriverInfo(Interface):
+    """ An object implementing this interface is passed to every
+    :term:`view deriver` during configuration."""
+    registry = Attribute('The "current" application registry when the '
+                         'view was created')
+    package = Attribute('The "current package" when the view '
+                        'configuration statement was found')
+    settings = Attribute('The deployment settings dictionary related '
+                         'to the current application')
+    options = Attribute('The view options passed to the view, including any '
+                        'default values that were not overriden')
+    predicates = Attribute('The list of predicates active on the view')
+    original_view = Attribute('The original view object being wrapped')
+
+class IViewDerivers(Interface):
+    """ Interface for view derivers list """
 
 class ICacheBuster(Interface):
     """
