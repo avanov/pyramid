@@ -79,15 +79,15 @@ will reside as we proceed through the tutorial:
 
 .. code-block:: text
 
-    └── ~
-        └── projects
-            └── quick_tutorial
-                ├── env
-                └── step_one
-                    ├── intro
-                    │   ├── __init__.py
-                    │   └── app.py
-                    └── setup.py
+    `── ~
+        `── projects
+            `── quick_tutorial
+                │── env
+                `── step_one
+                    │── intro
+                    │   │── __init__.py
+                    │   `── app.py
+                    `── setup.py
 
 For Linux, the commands to do so are as follows:
 
@@ -156,7 +156,7 @@ environment variable.
 .. code-block:: doscon
 
     # Windows
-    c:\> c:\Python35\python3 -m venv %VENV%
+    c:\> c:\Python35\python -m venv %VENV%
 
 .. seealso:: See also Python 3's :mod:`venv module <python:venv>` and Python
    2's `virtualenv <https://virtualenv.pypa.io/en/latest/>`_ package.

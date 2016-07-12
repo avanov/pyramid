@@ -4,14 +4,30 @@ unreleased
 Backward Incompatibilities
 --------------------------
 
+ - Following the Pyramid deprecation period (1.6 -> 1.8),
+   daemon support for pserve has been removed. This includes removing the
+   daemon commands (start, stop, restart, status) as well as the following
+   arguments:
+   --daemon --pid-file --log-file --monitor-restart --status --user --group
+   --stop-daemon
+
+   To run your server as a daemon you should use a process manager instead of
+   pserve.
+
 Features
 --------
 
 Bug Fixes
 ---------
+- Fixed bug in `pcreate` such that it now shows the correct view when a class
+  and `attr` is involved.
+  See: https://github.com/Pylons/pyramid/pull/2687
+
 
 Deprecations
 ------------
 
 Documentation Changes
 ---------------------
+- Updated Windows installation instructions and related bits.
+  See: https://github.com/Pylons/pyramid/issues/2661

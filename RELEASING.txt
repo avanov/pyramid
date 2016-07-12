@@ -33,8 +33,8 @@ Prepare new release branch
 
 - Run tests on Windows if feasible.
 
-- Make sure all scaffold tests pass (Py 2.7, 3.3, 3.4, 3.5, pypy, and pypy3 on
-  UNIX; this doesn't work on Windows):
+- Make sure all scaffold tests pass (Py 2.7, 3.3, 3.4, 3.5, and pypy on UNIX;
+  this doesn't work on Windows):
 
   $ ./scaffoldtests.sh
 
@@ -128,8 +128,12 @@ Pyramid 1.x released.
 PyPI
 https://pypi.python.org/pypi/pyramid/1.x
 
+=== One time only for new version, first pre-release ===
 What's New
-http://docs.pylonsproject.org/projects/pyramid/1.X-branch/whatsnew-1.X.html
+http://docs.pylonsproject.org/projects/pyramid/en/1.X-branch/whatsnew-1.X.html
+=== For all subsequent pre-releases ===
+Changes
+http://docs.pylonsproject.org/projects/pyramid/en/1.X-branch/changes.html#version-yyyy-mm-dd
 
 Issues
 https://github.com/Pylons/pyramid/issues

@@ -87,9 +87,9 @@ On UNIX:
 
 Or on Windows:
 
-.. code-block:: text
+.. code-block:: doscon
 
-   > %VENV%\Scripts\pcreate -s starter MyProject
+   c:\> %VENV%\Scripts\pcreate -s starter MyProject
 
 As a result of invoking the ``pcreate`` command, a directory named
 ``MyProject`` is created.  That directory is a :term:`project` directory. The
@@ -161,8 +161,8 @@ Or on Windows:
 
 .. code-block:: doscon
 
-   > cd MyProject
-   > %VENV%\Scripts\pip install -e .
+   c:\> cd MyProject
+   c:\> %VENV%\Scripts\pip install -e .
 
 Elided output from a run of this command on UNIX is shown below:
 
@@ -199,7 +199,7 @@ On Windows:
 
 .. code-block:: doscon
 
-   > %VENV%\Scripts\pip install -e ".[testing]"
+   c:\> %VENV%\Scripts\pip install -e ".[testing]"
 
 Once the testing requirements are installed, then you can run the tests using
 the ``py.test`` command that was just installed in the ``bin`` directory of
@@ -209,19 +209,19 @@ On UNIX:
 
 .. code-block:: bash
 
-   $ $VENV/bin/py.test myproject/tests.py -q
+   $ $VENV/bin/py.test -q
 
 On Windows:
 
 .. code-block:: doscon
 
-   > %VENV%\Scripts\py.test myproject\tests.py -q
+   c:\> %VENV%\Scripts\py.test -q
 
 Here's sample output from a test run on UNIX:
 
 .. code-block:: bash
 
-   $ $VENV/bin/py.test myproject/tests.py -q
+   $ $VENV/bin/py.test -q
    ..
    2 passed in 0.47 seconds
 
@@ -234,6 +234,26 @@ only two sample tests exist.
     The ``-q`` option is passed to the ``py.test`` command to limit the output
     to a stream of dots. If you don't pass ``-q``, you'll see verbose test
     result output (which normally isn't very useful).
+
+Alternatively, if you'd like to see test coverage, pass the ``--cov`` option
+to ``py.test``:
+
+.. code-block:: bash
+
+   $ $VENV/bin/py.test --cov -q
+
+Scaffolds include configuration defaults for ``py.test`` and test coverage.
+These configuration files are ``pytest.ini`` and ``.coveragerc``, located at
+the root of your package. Without these defaults, we would need to specify the
+path to the module on which we want to run tests and coverage.
+
+.. code-block:: bash
+
+   $ $VENV/bin/py.test --cov=myproject myproject/tests.py -q
+
+.. seealso:: See py.test's documentation for :ref:`pytest:usage` or invoke
+   ``py.test -h`` to see its full set of options.
+
 
 .. index::
    single: running an application
@@ -262,7 +282,7 @@ On Windows:
 
 .. code-block:: text
 
-   > %VENV%\Scripts\pserve development.ini
+   c:\> %VENV%\Scripts\pserve development.ini
 
 Here's sample output from a run of ``pserve`` on UNIX:
 
@@ -909,10 +929,10 @@ The ``tests.py`` module includes unit tests for your application.
    :linenos:
 
 This sample ``tests.py`` file has one unit test and one functional test defined
-within it. These tests are executed when you run ``py.test myproject/tests.py
--q``. You may add more tests here as you build your application. You are not
-required to write tests to use :app:`Pyramid`. This file is simply provided for
-convenience and example.
+within it. These tests are executed when you run ``py.test -q``. You may add
+more tests here as you build your application. You are not required to write
+tests to use :app:`Pyramid`. This file is simply provided for convenience and
+example.
 
 See :ref:`testing_chapter` for more information about writing :app:`Pyramid`
 unit tests.
